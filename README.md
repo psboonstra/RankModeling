@@ -16,8 +16,6 @@ In more detail, there are six files included in this repository (in addition to 
 
 <samp>case</samp>X<samp>_20Dec2014.csv</samp>, where X = 23, 83, and 111 contain the problem list data as ranked lists. Case 23 == Case A; Case 111 == Case B; Case 83 == Case C
 
-<code> sbatch runABUSims.txt </code>
-
 ### <samp>R</samp> files
 
 <samp>functions.R</samp> provides all of the necessary functions to fit the methods described in the paper. 
