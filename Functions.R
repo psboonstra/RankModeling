@@ -1201,8 +1201,6 @@ simulate_bpl = function(param, stages = 1, n_to_sim = 1) {
   apply(result, 2, as.numeric);
 }
 
-
-
 ordered_barplot = function(data_ranked, 
                            col_palette_range, 
                            file_path = "foo.pdf", 

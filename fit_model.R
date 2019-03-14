@@ -1,7 +1,7 @@
 library(tidyverse);
 library(RColorBrewer);
-source("Functions.R");
-source("gatherData.R");
+source("functions.R");
+source("gather_data.R");
 
 fixed = NULL;
 num_inits = 1;
