@@ -2,7 +2,8 @@
 
 ### Current Suggested Citation
 
-Boonstra, Philip S. and Krauss, John C., "Inferring a consensus problem list using penalized multistage models for ordered data" (2019) 
+Boonstra, Philip S. and Krauss, John C., "Inferring a consensus problem list using penalized multistage models for ordered data" (March 2019) *The University of Michigan Department of Biostatistics Working Paper Series*. Working Paper 126.
+https://biostats.bepress.com/umichbiostat/paper126
 
 
 ## Executive Summary
