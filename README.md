@@ -7,7 +7,7 @@ https://biostats.bepress.com/umichbiostat/paper126
 
 
 ## Executive Summary
-The function <samp>penRank_path</samp> contained in the file <samp>Functions.R</samp> represents the primary statistical contribution from this manuscript. This function will estimate the solution path for a Benter-Plackett-Luce model penalized with seamless $L_0$ penalties
+The function <samp>penRank_path</samp> contained in the file <samp>Functions.R</samp> represents the primary statistical contribution from this manuscript. This function will estimate the solution path for a Benter-Plackett-Luce model penalized with seamless <MATH>L<sub>0</sub> </MATH> penalties
 
 ## Further details
 
@@ -15,7 +15,7 @@ In more detail, there are six files included in this repository (in addition to 
 
 ### CSV files
 
-<samp>case</samp>X<samp>_20Dec2014.csv</samp>, where X = 23, 83, and 111 contain the problem list data as ranked lists. Case 23 == Case A; Case 111 == Case B; Case 83 == Case C
+<samp>case</samp>X<samp>_20Dec2014.csv</samp>, where X = 23, 83, and 111 contain the problem list data as ranked lists. Case 23 = Case A; Case 111 = Case B; Case 83 = Case C
 
 ### <samp>R</samp> files
 
