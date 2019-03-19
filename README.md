@@ -6,6 +6,9 @@ Boonstra, Philip S. and Krauss, John C., "Inferring a consensus problem list usi
 https://biostats.bepress.com/umichbiostat/paper126
 
 
+[![DOI](https://zenodo.org/badge/175481636.svg)](https://zenodo.org/badge/latestdoi/175481636)
+
+
 ## Executive Summary
 The function <samp>penRank_path</samp> contained in the file <samp>Functions.R</samp> represents the primary statistical contribution from this manuscript. This function will estimate the solution path for a Benter-Plackett-Luce model penalized with seamless <MATH>L<sub>0</sub> </MATH> penalties
 
