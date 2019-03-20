@@ -1,4 +1,4 @@
-# Rank Modeling
+# Penalized multistage models for ordered data
 
 ### Current Suggested Citation
 
@@ -27,3 +27,7 @@ In more detail, there are six files included in this repository (in addition to 
 <samp>gather_data.R</samp> reads in the problem list data from the .csv files and recharacterizes from ranked lists to ordered lists. Case 23 == Case A; Case 111 == Case B; Case 83 == Case C
 
 <samp>fit_model.R</samp> calls the previous two scripts and then calculates the solution paths and creates the tables and figures reported in the manuscript. 
+
+## Acknowledgments 
+
+This work was supported by the National Institutes of Health (UL1TR002240)
