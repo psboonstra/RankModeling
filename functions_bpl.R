@@ -63,6 +63,9 @@ BPL_neg_loglik = function(param,
        isTRUE(any(apply(dat,1,duplicated) & !apply(dat,1,is.na)))) {
       stop("'dat' must contain uninterrupted left-to-right sets of unique integers, i.e. no NAs between items");
     }
+    if(max(colSums(is.na(dat))) == num_obs) {
+      stop("One or more columns of 'dat' contain only NAs");
+    }
     if(!isTRUE(all.equal(names(param),c(0:num_uniq,"log_delta1","log_delta2"))) && !isTRUE(all.equal(names(param),c(1:num_uniq,"log_delta1","log_delta2")))) {
       stop("'param' must be named exactly as follows: '0' (optional, if the stopping process is to be modeled), then consecutive positive integer labels, one for each unique item, then 'log_delta1', then 'log_delta2'");
     }
@@ -190,6 +193,9 @@ BPL_neg_loglik_CA = function(param,
     list_lengths = unlist(lapply(apply(apply(aug_dat,1,is.na),2,which),"[",1)) - 1;
     num_uniq = sum(!is.na(unique(as.numeric(dat))));
     if(length(CA_flag) > 1) {stop("coordinate ascent cannot maximize with respect to more than one parameter");}
+    if(max(colSums(is.na(dat))) == num_obs) {
+      stop("One or more columns of 'dat' contain only NAs");
+    }
     if(!isTRUE(all.equal(names(param),c(0:num_uniq,"log_delta1","log_delta2"))) && !isTRUE(all.equal(names(param),c(1:num_uniq,"log_delta1","log_delta2")))) {
       stop("'param' must be named exactly as follows: '0' (optional, if the stopping process is to be modeled), then consecutive positive integer labels, one for each unique item, then 'log_delta1', then 'log_delta2'");
     }
@@ -543,7 +549,7 @@ seamless_L0 = function(param,
 ### num_inits: (integer, positive) the number of initial starting values
 #
 ### conv_tol: (numeric, positive) covergence tolerance; looking back over the previous 'stable_reps' (default 5) iterations 
-# of the coordinate ascent algorithm, if if the maximum absolute difference between any current parameter value and the previous
+# of the coordinate ascent algorithm, if the maximum absolute difference between any current parameter value and the previous
 # 'stable_reps' values of the same parameter is no more than 'conv_tol', then numerical convergence is satisifed (as long as 
 # at least 'min_reps' [default 5] iterations have been run) 
 #
@@ -688,6 +694,9 @@ penRank_path = function(dat,
      isTRUE(any(apply(dat,1,duplicated) & !apply(dat,1,is.na)))) {
     stop("'dat' must contain uninterrupted left-to-right sets of unique integers, i.e. no NAs between items");
   }
+  if(max(colSums(is.na(dat))) == num_obs) {
+    stop("One or more columns of 'dat' contain only NAs");
+  }
   if(!is.null(init_params) && !all(rownames(init_params) == param_names)) {stop("If provided, 'init_params' must have rownames exactly as follows: '0' (but only if any lists stop early), then consecutive positive integer labels, one for each unique item, then 'log_delta1', then 'log_delta2'");}
   if(!is.null(init_params) && sum(init_params[item_names,] < 0)) {stop("There are negative item weights in the user-provided matrix of 'init_params'; all item weights should be non-negative")}
   if((is.null(rownames(fixed)) || !all(rownames(fixed)%in%param_names)) && !is.null(fixed)) {stop("'fixed' must be NULL or a matrix with rownames being a subset of the parameter names");}
@@ -736,7 +745,9 @@ penRank_path = function(dat,
     init_params["log_delta2",] = rep(log(runif(num_inits, delta_lb, 1)), each = ncol(init_params) / num_inits);
   } else {
     #If 'init_params' is provided and fixed is also provided, 'init_params' will be replicated, once for each column of fixed
-    init_params = matrix(rep(init_params,ncol(fixed)),nrow = length_params);
+    init_params = matrix(rep(init_params,ncol(fixed)),
+                         nrow = length_params,
+                         dimnames = list(rownames(init_params), NULL));
   }
   #'fixed_indicators' matches the dimensions of 'init_params' and indicates which parameters in which column are to be left alone, i.e. fixed
   fixed_indicators = matrix(0, nrow = nrow(init_params), ncol = ncol(init_params), dimnames = list(param_names,NULL));
@@ -828,9 +839,9 @@ penRank_path = function(dat,
       num_items_to_estimate = length(which_items_to_estimate);
       
       store_params[[j]] = matrix(NA, nrow = length_params, ncol = num_lambda, dimnames = list(param_names,formatC(lambda_seq,format="f",digits=3)));
-      if(!identifying_max_lambda) {
+      if(!identifying_max_lambda && verbose) {
         cat("\n Initial Value ", j, "\n");
-      } else {
+      } else if(verbose) {
         cat(construction_message); 
       }
       param_for_compare = matrix(NA,nrow = length_params, ncol = stable_reps + 1, dimnames = list(param_names,NULL));
@@ -843,7 +854,7 @@ penRank_path = function(dat,
         previous_column =  stable_reps + 1;
         #curr_best_cost keeps track of the smallest achieved penalized log-likelihood that we've achieved so far with this lambda;
         #the corresponding parameter values that yield this best cost will be kept in param_for_compare[,curr_column];
-        curr_best_cost = BPL_neg_loglik_CA(param_for_compare[,curr_column],NA,dat,obs_weights,safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths,all_item_counts_by_rank[m,]) + 
+        curr_best_cost = BPL_neg_loglik_CA(param_for_compare[,curr_column],NA,dat,obs_weights,safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths) + 
           lambda * seamless_L0(param_for_compare[,curr_column],NA, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq) + 
           over_identified_cost(param_for_compare[,curr_column],NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
         while((i <= min_reps) || max(abs(param_for_compare[which_to_estimate,-curr_column] - param_for_compare[which_to_estimate,curr_column])) >= conv_tol - tiny_positive) {
@@ -858,13 +869,27 @@ penRank_path = function(dat,
               #and always ensuring that the 'null' value is proposed  
               if(m %in% c("log_delta1","log_delta2")) {
                 CA_curr_try = unique(pmax(log_delta_lb, pmin(0, curr_try[m] + proposal_seq)));
+                CA_param_counts_by_rank = NULL;
               } else if(m == "0") {
                 CA_curr_try = curr_try[m] + proposal_seq;
+                CA_param_counts_by_rank = NULL;
               } else {
                 CA_curr_try = unique(pmax(0, c(0, curr_try[m] + proposal_seq)));
+                CA_param_counts_by_rank = all_item_counts_by_rank[m,];
               }
               curr_try[m] = NA;
-              curr_try_cost = BPL_neg_loglik_CA(curr_try,CA_curr_try,dat,obs_weights,safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths,all_item_counts_by_rank[m,]) + 
+              curr_try_cost = 
+                BPL_neg_loglik_CA(curr_try,
+                                  CA_curr_try,
+                                  dat = dat,
+                                  obs_weights = obs_weights,
+                                  safe_mode = safe_mode, 
+                                  num_uniq = num_uniq, 
+                                  num_obs = num_obs, 
+                                  num_ranks = num_ranks, 
+                                  max_columns = max_columns, 
+                                  list_lengths = list_lengths, 
+                                  CA_param_counts_by_rank = CA_param_counts_by_rank) + 
                 lambda * seamless_L0(curr_try,CA_curr_try, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq) + 
                 over_identified_cost(curr_try,CA_curr_try, safe_mode = safe_mode, tiny_positive = tiny_positive);
               if(curr_try_cost[which_min_curr_try_cost <- which.min(curr_try_cost)] < curr_best_cost) {
@@ -900,7 +925,7 @@ penRank_path = function(dat,
             #permute_estimates: randomly permute estimated item weights up or down one place; make dampening parameter closer to zero
             old_order = order(permute_estimates[which_items_to_estimate]);
             new_order = old_order[order((1:num_items_to_estimate) + sample(c(-1,0,1), num_items_to_estimate, replace = TRUE,prob = c(1,2,1)))];
-
+            
             permute_estimates[which_items_to_estimate[old_order]] = permute_estimates[which_items_to_estimate[new_order]];
             rm(new_order,old_order);
             
@@ -965,7 +990,10 @@ penRank_path = function(dat,
               monitor_joint_shifts["shift up", k] = monitor_joint_shifts["shift up", k] + 1;
             }
           }
-          if(i >= ifelse(k == 1, max_reps_keq1, max_reps_kgt1)) {break;}
+          if(i >= ifelse(k == 1, max_reps_keq1, max_reps_kgt1)) {
+            i = i + 1;
+            break;
+          }
           i = i + 1;
         }
         if(verbose && !identifying_max_lambda) {
@@ -1086,7 +1114,7 @@ penRank_path = function(dat,
     c("aic", "neg_loglikelihood","lambda","num_eff_params", "num_actual_params");
   
   if(num_lambda > 1 && (any(apply(store_bic,1,which.min) == 1) || any(apply(store_aic,1,which.min) == 1))) {
-    cat("The smallest AIC and/or BIC occurred at the minimum value of lambda; if this is unexpected, consider decreasing the minimum value of lambda");
+    cat("The smallest AIC and/or BIC occurred at the minimum value of lambda; if this is unexpected, consider decreasing the minimum value of lambda\n");
   }
   return(list(control = list(conv_tol = conv_tol,
                              tau = tau, 
@@ -1117,7 +1145,7 @@ penRank_path = function(dat,
               best_bic = best_bic, 
               best_fit_aic = best_fit_aic, 
               best_aic = best_aic, 
-              runtime = Sys.time() - begin));
+              runtime = difftime(Sys.time(), begin, units = "secs")));
 }
 
 
@@ -1153,52 +1181,8 @@ bpl_probs = function(param, stage = 1) {
   dampening = exp(param["log_delta2"] + (stage - 1) * param["log_delta1"]) + 
     (1-exp(param["log_delta2"]))^(2 * stage - 1) ;
   fitted_probs[item_names] = exp(dampening * param[item_names]) / (fatigue_weight + sum(exp(dampening * param[item_names])))
-  if("0"%in%param_names) {fitted_probs["0"] = 1 - sum(fitted_probs);}
+  if("0"%in%param_names) {fitted_probs["0"] = 1 - sum(fitted_probs) + .Machine$double.eps;}
   return(fitted_probs);
-}
-
-# function name and purpose: 'simulate_bpl' Simulates a set of lists according to the BPL model implied by 'param'. 
-#
-# author: Phil Boonstra (philb@umich.edu)
-#
-# date: 3/5/2019, 10:00am EST
-#
-# Function inputs:
-#
-### param: (vector with 'names' attribute, numeric) the parameter vector to evaluate with respect to the data. Must be named exactly 
-# as follows: '0' (optional, if the stopping process is to be modeled), then a set of item labels, then 'log_delta1', then 'log_delta2'. 
-# In contrast to other functions, the item labels do not have to be complete nor consecutive. You would leave out '7', for example, if you
-# are simulating from stage 2 and item '7' was put first at the first stage, so that you want the stage 2 probabilities conditional upon
-# stage 1 having ranked item 7. 
-### stages: (vector, consecutive positive integers starting with 1) up to how many stages should be simulated? OR (single positive integer)
-# which stage to simulate?
-#
-### n_to_sim: (integer, positive) how many lists to generate?
-#
-### Value
-#
-# If length(stages) == 1, a vector of items, corresponding to n_to_sim draws from the conditional multinomial distribution from that BPL model
-# at that stage. If length(stages) > 1, a matrix with dimensions c(n_to_sim, length(stages)) corresponding to a n_to_sim draws from the sequence
-# of conditional multinomial distributions from that BPL model. 
-
-simulate_bpl = function(param, stages = 1, n_to_sim = 1) {
-  if(length(stages) == 1) {
-    result = sample(setdiff(names(param), c("log_delta1","log_delta2")),size = n_to_sim,  prob = bpl_probs(param, stage = stages), replace = TRUE)
-  } else {
-    stopifnot(all(stages == 1:length(stages)));
-    result = matrix(NA, nrow = n_to_sim, ncol = length(stages));
-    result[,1] = sample(setdiff(names(param), c("log_delta1","log_delta2")),size = n_to_sim,  prob = bpl_probs(param, stage = 1), replace = TRUE);
-    for(curr_sim in 1:n_to_sim) {
-      for(curr_stage in 2:length(stages)) {
-        curr_param = param[setdiff(names(param),result[curr_sim,1:curr_stage])];
-        result[curr_sim,curr_stage] = sample(setdiff(names(curr_param), c("log_delta1","log_delta2")),size = 1,  prob = bpl_probs(curr_param, stage = curr_stage), replace = TRUE);
-        if(result[curr_sim,curr_stage]=="0") {
-          break;
-        }
-      }
-    }
-  }
-  apply(result, 2, as.numeric);
 }
 
 ordered_barplot = function(data_ranked, 
@@ -1228,7 +1212,10 @@ ordered_barplot = function(data_ranked,
   pdf(file = file_path, 
       width = 8, 
       height = 1.4 + 2.6 * (ymax/28), 
-      family ="serif");
+      #units = "in",
+      #res = 400,
+      family ="serif"
+  );
   par(mar=c(3.5,1.5 + 8 * (max(nchar(colnames(data_ranked)[column_order_to_plot]))/24),1.0,0.6), 
       oma = c(0, 0, 1, 0));
   plot.new();
@@ -1283,3 +1270,13 @@ ordered_barplot = function(data_ranked,
   title(main = title_text, outer = T, adj = 0);
   dev.off();
 }
+
+
+matrix_to_list = function(x) {
+  
+  lapply(seq_len(nrow(x)), function(i) x[i,1:sum(!is.na(x[i,]))]) 
+  
+}
+
+
+

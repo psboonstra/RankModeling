@@ -21,7 +21,7 @@ case23_ordered = case23_ordered[,which(colSums(!apply(case23_ordered,2,is.na))>0
 if(make_plots) {
   ordered_barplot(case23_ranked, 
                   col_palette_range = c("#800026", "#FFCB05"), 
-                  file_path = "../../barplot_case23.pdf",
+                  file_path = "../../barplot_case23.png",
                   title_text = "Case A");
 }
 
@@ -44,7 +44,7 @@ case111_ordered = case111_ordered[,which(colSums(!apply(case111_ordered,2,is.na)
 if(make_plots) {
   ordered_barplot(case111_ranked, 
                   col_palette_range = c("#00441B", "#FFCB05"), 
-                  file_path = "../../barplot_case111.pdf",
+                  file_path = "../../barplot_case111.png",
                   title_text = "Case B");
 }
 
@@ -67,7 +67,7 @@ case83_ordered = case83_ordered[,which(colSums(!apply(case83_ordered,2,is.na))>0
 if(make_plots) {
   ordered_barplot(case83_ranked, 
                   col_palette_range = c("#00274C", "#FFCB05"), 
-                  file_path = "../../barplot_case83.pdf",
+                  file_path = "../../barplot_case83.png",
                   title_text = "Case C");
 }
 
