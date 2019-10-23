@@ -1,4 +1,6 @@
 
+
+
 library(tidyverse);
 library(TopKLists);
 library(pROC);
@@ -8,7 +10,7 @@ library(gtools);
 
 # DESCRIPTION: 
 # Flag for whether this is running on a local machine or on a cluster running SLURM
-my_computer = F;
+my_computer = T;
 
 # 'which_run' indicates whether this is the first batch (= 1 ) 
 # or the second batch ( = 2)
@@ -89,30 +91,11 @@ curr_args = arglist[[ceiling(permute_array_ids[array_id]/jobs_per_scenario)]];
 curr_args[["random_seed"]] = curr_args[["random_seed"]] + array_id_offset + array_id;
 
 # Phil delete below ----
-#curr_args$n_sim = 1;
-#curr_args$n_training = 30;
-#curr_args$random_seed = 46356852;
-#curr_args$data_seeds = 46723301;
-#curr_args$true_param["0"] = 0.5;
-#curr_args$true_param[as.character(1:10)] = c(seq(0.09, 0.05, by = -0.01), numeric(5))
-#curr_args$true_param[c("log_delta1","log_delta2")] = 0;
+curr_args$true_param = curr_args$true_param[-1];
 # Phil delete above ----
 
 assign(paste0("sim",array_id_offset + array_id),do.call("simulator",args = curr_args));
 
-# Phil delete below ----
-if(0) {
-  get(paste0("sim",array_id_offset + array_id))$summarized_performance %>%
-    group_by(method_names) %>%
-    summarize(mean_tau_x = mean(tau_x),
-              mean_auc = mean(auc), 
-              mean_rmse_order = mean(rmse_order));
-  get(paste0("sim",array_id_offset + array_id))$summarized_bpl %>%
-    group_by(method_names) %>%
-    summarize(mean_rmse = mean(rmse),
-              mean_rmse_order = mean(rmse_order));
-}
-# Phil delete above ----
 
 do.call("save",list(paste0("sim",array_id_offset + array_id),
                     file = paste0("out/sim",array_id_offset + array_id,".RData")));

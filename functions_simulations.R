@@ -1,4 +1,7 @@
 
+# For a vector of rankings, calculates its score matrix required for the 
+# calculation of Emond and Mason's TauX coefficient
+
 comparison_matrix = function(x) {
   foo = matrix(x, nrow = length(x), ncol = length(x));
   t_foo = t(foo);
@@ -64,29 +67,37 @@ validate_weights = function(est_weights,
 }
 
 
-# function name and purpose: 'simulate_bpl' Simulates a set of lists according to the BPL model implied by 'param'. 
+# function name and purpose: 'simulate_bpl' Simulates a set of lists according 
+# to the BPL model implied by 'param'. 
 #
 # author: Phil Boonstra (philb@umich.edu)
 #
-# date: 3/5/2019, 10:00am EST
+# date: 10/23/2019
 #
 # Function inputs:
 #
-### param: (vector with 'names' attribute, numeric) the parameter vector to evaluate with respect to the data. Must be named exactly 
-# as follows: '0' (optional, if the stopping process is to be modeled), then a set of item labels, then 'log_delta1', then 'log_delta2'. 
-# In contrast to other functions, the item labels do not have to be complete nor consecutive. You would leave out '7', for example, if you
-# are simulating from stage 2 and item '7' was put first at the first stage, so that you want the stage 2 probabilities conditional upon
-# stage 1 having ranked item 7. 
-### stages: (vector, consecutive positive integers starting with 1) up to how many stages should be simulated? OR (single positive integer)
-# which stage to simulate?
+### param: (vector with 'names' attribute, numeric) the parameter vector to 
+# evaluate with respect to the data. Must be named exactly as follows: '0' 
+# (optional, if the stopping process is to be modeled), then a set of item 
+# labels, then 'log_delta1', then 'log_delta2'. In contrast to other functions,
+# the item labels do not have to be complete nor consecutive. You would leave 
+# out '7', for example, if you are simulating from stage 2 and item '7' was 
+# put first at the first stage, so that you want the stage 2 probabilities 
+# conditional upon stage 1 having ranked item 7. 
+#
+### stages: (vector, consecutive positive integers starting with 1) up to how
+# many stages should be simulated? OR (single positive integer) which stage to 
+# simulate?
 #
 ### n_to_sim: (integer, positive) how many lists to generate?
 #
 ### Value
 #
-# If length(stages) == 1, a vector of items, corresponding to n_to_sim draws from the conditional multinomial distribution from that BPL model
-# at that stage. If length(stages) > 1, a matrix with dimensions c(n_to_sim, length(stages)) corresponding to a n_to_sim draws from the sequence
-# of conditional multinomial distributions from that BPL model. 
+# If length(stages) == 1, a vector of items, corresponding to n_to_sim draws 
+# from the conditional multinomial distribution from that BPL model
+# at that stage. If length(stages) > 1, a matrix with dimensions 
+# c(n_to_sim, length(stages)) corresponding to a n_to_sim draws from the 
+# sequence of conditional multinomial distributions from that BPL model. 
 
 simulate_bpl = function(param, stages = 1, n_to_sim = 1) {
   if(length(stages) == 1) {
@@ -124,6 +135,49 @@ simulate_bpl = function(param, stages = 1, n_to_sim = 1) {
 }
 
 
+# function name and purpose: 'simulator' conducts a simulation of a single
+# data generating scenario of the BPL model. 
+#
+# author: Phil Boonstra (philb@umich.edu)
+#
+# date: 10/23/2019
+#
+# Function inputs:
+#
+### array_id, scenario_id, param_id (arbitrary) these are included as columns
+# in the output results and are intended to be useful for the user to 
+# distinguish between results when stacking lots of them on top of each other. 
+# We used 'array_id' to denote the value of Sys.getenv('SLURM_ARRAY_TASK_ID'), 
+# 'scenario_id' to uniquely identify each combination of true parameter value
+# and sample size, and 'param_id' to uniquely identify each set of true parameter
+# values (without regard to sample size)
+#
+### n_sim (integer, positive) how many independent simulated datasets to run?
+#
+### true_param (vector, named) 'true_param' must be named as follows:
+# '0' (can be excluded), then one or more consecutive positive integer labels 
+# starting with '1', one for each unique item, then 'log_delta1', then 
+# 'log_delta2'. '0' corresponds to the true value of the fatigue parameter 
+# (theta0), '1',... correspond to the true value of the item weights (thetak), 
+# and 'log_delta1' and 'log_delta2' correspond to the logged values of 'delta1'
+# and 'delta2'
+#
+### n_training (integer, positive) size of training data
+#
+### random_seed (integer, positive) random seed to use
+#
+### data_seeds (vector of integers, positive) if provided, must have length
+# equal to 'n_sim', corresponding to the individual seeds to use for each
+# iteration
+#
+### Value
+#
+# A list of results, the most important of which are (i) 
+# 'summarized_performance', a tbl which gives the value of the 'ordered RMSE' 
+# metric, Emond and Mason's tau_x correlation, and the AUC value for 
+# discriminating between zero and non-zero item weights and (ii) 
+# 'summarized_bpl', which gives the BPL-specific metrics RMSE, TNR, TPR, Youden, 
+# running time. 
 simulator = function(array_id = 1,
                      scenario_id = 1,
                      param_id = 1,
@@ -550,7 +604,7 @@ simulator = function(array_id = 1,
                           ldrbo_results$consensus_list, 
                         window_seq = 
                           rep(6, curr_n_items),
-                        verbose = T);
+                        verbose = FALSE);
       
       end_ldrbo = Sys.time();
       

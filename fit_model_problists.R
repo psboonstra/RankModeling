@@ -1,3 +1,9 @@
+# Run this script to create three .txt files corresponding to Table 4--6 in the
+# manuscript formatted as LaTeX tables, three .png files corresponding to Figures
+# S1--S3 in the manuscript, and one .png file corresponding to Figure 3 in the 
+# manuscript
+
+
 library(tidyverse);
 library(RColorBrewer);
 library(TopKLists);
@@ -10,7 +16,7 @@ fig_extension = "png";
 source("gather_data.R");
 
 fixed = NULL;
-num_inits = 3;# 1;#
+num_inits = 3;
 conv_tol = 1e-3;
 tau = conv_tol;
 num_lambda = 100; 10;#
@@ -24,17 +30,16 @@ stable_reps = 3;
 min_reps = 3;
 multivariable_proposals = T;
 delta_lb = 0.25;
-max_reps_keq1 = 1e3;#100;#
-max_reps_kgt1 = 250;#20;#
+max_reps_keq1 = 1e3;
+max_reps_kgt1 = 250;
 random_seed = sample(2^30.9, 1);
-verbose = FALSE;#TRUE;#
+verbose = FALSE;
 safe_mode = FALSE;
 
 
 # Case 23 = Case A
 # Case 111 = Case B
 # Case 83 = Case C
-
 
 
 for(case_name in c("23","111","83")) {
@@ -146,7 +151,7 @@ for(case_name in c("23","111","83")) {
   selected_iter_bic = which.min(penalized_soln_path$best_bic["bic",]);
   
   
-  # Table of results (Tables 1--3)----
+  # Table of results (Tables 4--6)----
   
   # + Bottom part: tuning parameter values ----
   lambda_values = data.frame(
@@ -401,7 +406,7 @@ for(case_name in c("23","111","83")) {
 }
 
 
-# Code to create plot of highest probability item at each stae
+# Figure 3 in manuscript ----
 
 case23_params = case23_penalized_soln_path$best_fit_aic[,1];
 foo <- bpl_probs(case23_params, stage = 1)
