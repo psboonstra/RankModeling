@@ -8,8 +8,14 @@ University of Michigan Department of Biostatistics Working Paper Series*.
 Working Paper 126.
 https://biostats.bepress.com/umichbiostat/paper126
 
-
 [![DOI](https://zenodo.org/badge/175481636.svg)](https://zenodo.org/badge/latestdoi/175481636)
+
+See also:
+
+Krauss, John C., Boonstra, Philip S., Vantsevich, Anna V., and Friedman, 
+Charles P., "Is the problem list in the eye of the beholder? An exploration of
+consistency across physicians" *Journal of the American Medical Informatics 
+Association* (2016); 23(5), 859--865  https://doi.org/10.1093/jamia/ocv211
 
 
 ## Executive Summary
