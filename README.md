@@ -45,7 +45,8 @@ Case 111 = Case B; Case 83 = Case C
 the BPL methods described in the paper
 
 <samp>functions_ldrbo.R</samp> provides all of the necessary functions to 
-calculate the consensus LDRBO reported in this paper and Krauss, et al. (2015)
+calculate the consensus LDRBO reported in this paper and Krauss, et al. (2015). 
+See the file ldrbo_vignette.pdf for more details. 
 
 <samp>gather_data.R</samp> reads in the problem list data from the .csv files 
 and recharacterizes from ranked lists to ordered lists. Case 23 == Case A; 

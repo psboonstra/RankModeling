@@ -116,9 +116,9 @@ ldrbo = function(dat_new,
 # less than this value will never be the returned consensus list, even if it
 # optimizes the objective. Smaller values of 'min_size' will *not* make 
 # the algorithm run faster. Generally, you can leave this at its default 
-# value of 1; however, another logical choice would be to set it equal to the
-# number of unique items that are in the dataset, i.e. so that the returned
-# list is forced to rank every single item in the data. 
+# value of 1; however, another logical choice would be to set it equal to your
+# choice of 'max_size' if you want the best consensus list subject to having
+# length exactly equal to 'min_size' (which equals 'max_size')
 #
 ### look_beyond_init, look_beyond_final: (integer, positive) Tuning parameters
 # that control the greediness of the algorithm. An equally spaced sequence with 
@@ -128,28 +128,27 @@ ldrbo = function(dat_new,
 # lists that will be retained for further exploration (if there are fewer candidate 
 # lists than this value, then they will all be retained) Typically 'look_beyond_init'
 # is greater that 'look_beyond_final' based on the assumption that it is more 
-# important to fully explore the beginning of a consensus list than the end. 
-# Smaller values make the algorithm run faster but also be more greedy by 
-# focusing on lists that have already proven to have good overall consensus 
-# as opposed to lists that have the potential to have good overall consensus. 
-# Larger values make the algorithm run slower by considering a larger number of 
-# possible lists that are not currently optimal but may turn out to be optimal. 
-# The optimized objective value at the best consensus list will be 
-# non-decreasing with these tuning parameters. 
+# important to consider currently suboptimal lists at the beginning of a 
+# consensus list than the end. Smaller values make the algorithm run faster 
+# by being greedier, i.e. focusing on lists that have already proven to
+# have good overall consensus at the expense of lists that have the potential to
+# have good overall consensus. Larger values make the algorithm run slower by 
+# considering a larger number of possible lists that are not currently optimal 
+# but may turn out to be optimal. 
 # 
 ### window_seq: (vector, positive integers) a vector of integers with length 
 # equal to max_size. At the kth step, the algorithm will look at the next 
 # window_seq[k] elements from 'initial_order' (see next entry) for possible 
 # inclusion. Thus, larger numbers mean that the algorithm considers more 
-# possibilities. The choice of 'look_beyond' and 'window_seq' can cause 
-# If 'window_seq' is not provided, the algorithm constructs its 
-# own default value. 
+# possibilities. Together, the choice of 'look_beyond' and 'window_seq' control 
+# what might be considered the "greediness-slowness tradeoff" of the algorithm.
+# If 'window_seq' is not provided, the algorithm constructs its own default value. 
 #
-### initial_order: (vector, positive integers) a vector of integers that is a
-# permutation of the item labels that have been ranked. Not all items can 
-# be considered always due to time and memory constraints, thus 'initial_order', 
-# in conjunction with 'window_seq', prioritizes the items in terms of when they 
-# should be considered. 
+### initial_order: (vector, positive integers) a permutation of the vector of
+# unique item labels that have been ranked. Not all items can be considered 
+# at all steps of the algorithm always due to time and memory constraints, thus 
+# 'initial_order', in conjunction with 'window_seq', prioritizes the items in 
+# terms of when they should be considered. 
 #
 ### objective: (character equal to "median" or "mean"): should the median or 
 # mean pairwise LDRBO be maximized? Anything besides 'median' is assumed to 
@@ -179,76 +178,38 @@ ldrbo = function(dat_new,
 # ordered list in the data. Elements are sorted in decreasing order and correspond
 # to the respective row of 'candidates'
 #
-# Details:
-# We use the term 'consensus' below as a synonym for the objective
-# function that is to be maximized (either the median or the mean of the pairwise
-# LDRBO between a single list and each of the observed lists in the data), and 
-# the resulting optimized list is called the 'consensus list'. The algorithm works 
-# by "growing" the consensus list, starting from the first item, then the second,
-# and so forth. However, it is not just a greedy algorithm in the sense of
-# growing a single list. Potentially many lists are retained at each iteration. 
-# The challenge in this approach is that it is impossible to consider all lists 
-# unless the number of items is very small. For example, a brute force approach 
-# would require evaluating sum_{k=1}^{k=n_items} k! possible consensus lists, 
-# i.e. not feasible for n_items >~ 20. This function uses a 'branch and bound'
-# algorithm to grow lists (the branches) and evaluate their best-case consensus, 
-# defined as the consensus that could be achieved after they are fully grown 
-# and achieve perfect agreement with all lists on all remaining items to be 
-# ranked. Those lists that cannot attain better consensus than what has already 
-# been attained, even assuming a best case scenario, can be discarded as clearly 
-# suboptimal. However, this is a fairly extreme and simplistic  pruning
-# approach, since it is inconceivable that any candidate list could attain 
-# perfect agreement with *all* lists in the data set. Therefore, empirically 
-# most lists are not dropped until late in the algorithm, when computing 
-# savings are minimal. Therefore, the algorithm further prioritizes lists that 
-# cannot be dropped based on the relative difference between (i) the current 
-# consensus that the list has achieved and (ii) maximum possible consensus that
-# the list can achieve assuming perfect agreement. More technically, if y is 
-# the list that is currently the best list under consideration, then for an 
-# arbitrary list x we calculate
+# Details: 
+# The kth step of the iteration, starting with k = 2, has three substeps. First, 
+# grow all lists currently under consideration, each of which is exactly length 
+# k-1, by exactly one item. For a given list under consideration, choose the 
+# first 'window_seq[k]' items from the vector 'initial_order' that have not yet 
+# been ranked in that list, and create'window_seq[k]' new lists from that list. 
+# Thus, if the number of lists under consideration at the start of this step was
+# m, then the number of lists under consideration at th end of this step is 
+# m * window_seq[k], and each of these new lists is now length-(k). Second, 
+# calculate the values x(obs) and x(max) for each of the m * window_seq[k] 
+# lists x under consideration. This involves comparing each list to the observed 
+# data, evaluating each pairwise LDRBO value, and calculating the mean or median 
+# of all pairwise LDRBO values. Third, order all lists according to the criterion 
+# above, dropping all lists for which the criterion equals 0. If all lists have
+# a stricitly positive value of the criterion, then they are all candidates. 
+# However, we can only keep at most 'look_beyond[k]' candidates for the next 
+# iteration, and so we drop the lists with the smallest values of the criterion
+# until we have only 'look_beyond[k]' candidates remaining. Then, 
+# increment k, and go back to substep 1. Stop when k == max_size and return 
+# list y, which achieves a consensus of y(obs) and is, by definition, the largest
+# LDRBO we observed
 # 
-# criterion: max(0, [x(max) - y(obs)] / [x(max) - x(obs)]) 
-# 
-# where x(max) is the theoretical best possible consensus that x can achieve 
-# after adding more items given its current level of consensus, x(obs) is the 
-# current consensus that x achieves, and y(obs) is consensus of list that is 
-# currently best. Lists that need to drastically exceed the current level of 
-# consensus already achieved  by list y (the numerator), relative to what they 
-# have already achieved (the denominator) are not great candidates for 
-# ultimately being the consensus list. Larger values of this criterion are 
-# better, and list y will always evaluate to 1, the  best possible value. All 
-# lists for which this criterion evalutes to 0 can be automatically dropped, 
-# since this implies that x(max) <= y(obs), i.e. list x cannot beat list y even 
-# in the best case. 
-#
-# The kth step of the iteration has three substeps. First, grow all lists 
-# currently under consideration, each of which is exactly length k, by exactly 
-# one item. Choose the first 'window_seq[k]' items from the vector
-# 'initial_order' that have not yet been ranked in that list, and create 
-# 'window_seq[k]' new lists from each initial list. Thus, if the number of 
-# lists under consideration at the start of this step was m, then the number of
-# lists under consideration at th end of this step is m * window_seq[k], and 
-# each of these lists is now length-(k+1). Second, calculate the values
-# x(obs) and x(max) for each of the m * window_seq[k] lists x under consideration. 
-# This involves comparing each list to the observed data, evaluating each pairwise 
-# LDRBO value, and calculating the mean or median of all pairwise LDRBO values. 
-# Third, order all lists according to the criterion above. If
-# m * window_seq[k] < look_beyond[k], then we can keep all lists, increment k, 
-# and go back to substep 1. Otherwise, keep the look_beyond[k] lists with the 
-# highest value of the criterion, dropping all lists below. Stop when 
-# k == max_size and return list y, which achieves a consensus of y(obs). 
-#
-#
 # This function is not optimized for speed or efficiency.  There are a few 
 # calculations and loops that can get very expensive both in  terms of memory 
-# and time. Specifically, a minimum bound on the memory required
-# for this function (in bytes) is 
-# 40 * x * y * z;
-# where
+# and time. Specifically, a lower bound on the memory required for this 
+# function (in bytes) is 40 * x * y * z, where
 # x = max(c(0, look_beyond) * c(window_seq, 0))
 # y = nrow(dat);
 # z = max(max_size, ncol(dat));
-
+# 
+# Suggestions on improving the speed or efficiency of this algorithm are always
+# welcomed via github pull requests. 
 
 consensus_ldrbo = function(dat,
                            psi,
@@ -553,6 +514,9 @@ consensus_ldrbo = function(dat,
   
   candidate_ranking = order(-curr_search_total_rbo);
   consensus_tie = which(max(curr_search_total_rbo)-curr_search_total_rbo < tiny_positive);
+  
+  #This is just to reflect that all lists at step 1 are always retained
+  look_beyond[1] = Inf; 
   
   list(consensus_list = curr_search[1,1:sum(!is.na(curr_search[1,]))],
        consensus_total_rbo = curr_search_total_rbo[1], 
