@@ -1,8 +1,18 @@
-#https://stat.ethz.ch/pipermail/r-help/2006-March/101023.html
-interleave <- function(v1,v2) {
-  ord1 <- 2*(1:length(v1))-1
-  ord2 <- 2*(1:length(v2))
-  c(v1,v2)[order(c(ord1,ord2))]
+
+seq_size_intersection = function(x, y, max_d = NULL) {
+  if(is.null(max_d)) {
+    max_d = max(min(length(x), which(is.na(x))),
+                min(length(y), which(is.na(y))));
+  }
+  seq_max_d = seq_len(max_d);
+  agreement = numeric(max_d);
+  agreement[1] = x[1] == y[1];
+  for(d in seq_max_d[-1]) {
+    agreement[d] =
+      (!is.na(x[d])) * (x[d] %in% y[seq_len(d)]) + 
+      (!is.na(y[d])) * (y[d] %in% x[seq_len(d-1)])
+  }
+  cumsum(agreement);
 }
 
 ldrbo = function(dat_new, 
@@ -35,9 +45,17 @@ ldrbo = function(dat_new,
   for(i in 1:n_new_samps) {
     for(j in 1:n_ref_samps) {
       max_d = max(sum(!is.na(dat_new[i,])),sum(!is.na(dat_ref[j,])));
-      for(d in 1:max_d) {
-        agreement[i,j,d] = sum(!is.na(intersect(dat_new[i,1:d],dat_ref[j,1:d])))/d
-      }
+      #if(F) {
+      #  for(d in 1:max_d) {
+      #    agreement[i,j,d] = sum(!is.na(intersect(dat_new[i,1:d],dat_ref[j,1:d])))/d
+      #  }
+      #}
+      #if(T) {
+      agreement[i,j,1:max_d] = 
+        seq_size_intersection(x = dat_new[i,], 
+                              y = dat_ref[j, ], 
+                              max_d = max_d) / (1:max_d);
+      #}
       psi2d[i,j,-(1:max_d)] = 0;
     }
   }
@@ -318,7 +336,7 @@ consensus_ldrbo = function(dat,
     window_init = 
       pmin(num_uniq, pmax(5, sum(rank_points > 0.5 * max(rank_points))));
     window_seq = 
-      pmin(1 + num_uniq - (1:num_uniq),
+      pmin(1 + num_uniq - (1:max_size),
            ceiling(seq(from = window_init, to = num_uniq, length = max_size)));
     rm(window_init);
   }
@@ -413,12 +431,22 @@ consensus_ldrbo = function(dat,
       # Can only measure agreement up to the longer of the two lists
       psi2d[,j,-seq_max_d] = 0;
       for(i in seq_nrow_curr_search) {
-        for(d in seq_max_d) {
-          obs_agreement[i,j,d] =
-            max_agreement[i,j,d] = 
-            sum(!is.na(intersect(curr_search[i,seq_len(min(k,d))],
-                                 dat[j,seq_len(min(length_j,d))])))/d
-        }
+        
+        #if(F) {
+        #  for(d in seq_max_d) {
+        #    obs_agreement[i,j,d] =
+        #      max_agreement[i,j,d] = 
+        #      sum(!is.na(intersect(curr_search[i,seq_len(min(k,d))],
+        #                           dat[j,seq_len(min(length_j,d))])))/d
+        #  }
+        #}  
+        #if(T) {
+        obs_agreement[i,j,1:max_d] =
+          max_agreement[i,j,1:max_d] = 
+          seq_size_intersection(x = curr_search[i,], 
+                                y = dat[j, ], 
+                                max_d = max_d) / (1:max_d);
+        #}
         
         # Extrapolate to the maximum possible agreement
         if(k < min_max_size_max_d) {
