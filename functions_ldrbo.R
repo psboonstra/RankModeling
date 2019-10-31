@@ -1,3 +1,6 @@
+# This script contains functions related to the calculation of the LDRBO
+# metric proposed in Krauss, et al (2015). 
+
 
 seq_size_intersection = function(x, y, max_d = NULL) {
   if(is.null(max_d)) {
@@ -44,7 +47,8 @@ ldrbo = function(dat_new,
   agreement = array(0,c(n_new_samps, n_ref_samps, max_depth));
   for(i in 1:n_new_samps) {
     for(j in 1:n_ref_samps) {
-      max_d = max(sum(!is.na(dat_new[i,])),sum(!is.na(dat_ref[j,])));
+      max_d = max(sum(!is.na(dat_new[i,])),
+                  sum(!is.na(dat_ref[j,])));
       #if(F) {
       #  for(d in 1:max_d) {
       #    agreement[i,j,d] = sum(!is.na(intersect(dat_new[i,1:d],dat_ref[j,1:d])))/d
