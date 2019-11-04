@@ -108,20 +108,28 @@ as_tibble(case23_ranked);
 #+ echo=T, warning=F, message=F, cache = F, include = T
 
 #' In contrast, below is the same data formulated as a matrix of ordered lists
-#' (for brevity, I only plot the first five lists).
-#' Each row is still a physician, but now each column is a rank. Here, an `NA` 
-#' means that the list in that row has already ended, and it is just a filler
-#' to make the matrix rectangular. No `NA` should precede a non-`NA`. The number
-#' of columns is (or should be, rather) the length of the longest list. I say 
-#' 'should be' because you can always trivially add a column of `NA`s; but 
-#' don't do this. In other words, the last column in your matrix of ordered
-#' lists should contain at least one row with a non-`NA`. If you are 
-#' interested in a specific rank, then a set of ordered lists is useful because
-#' you can quickly scan down a column to see the items that are most frequently
-#' in that rank. **To use the functions in this repository, your data must be
-#' formualted as ordered lists**
+#' (for brevity, I only plot the first five lists). Each row is still a physician, 
+#' but now each column is a rank. The integer values correspond to the column
+#' number of the ranked data. So, for example, the value `1` appearing in the 
+#' first column of the first row of the ordered data means that the first 
+#' physician ranked `PNEUMONIA` (being the first column of the ranked data) 
+#' first, and the value `2` appearing in the tenth column of the second row 
+#' means that the second physician ranked `ANEMIA` (being the tenth column of 
+#' the ranked data) tenth. 
+#' 
 case23_ordered[1:5,];
 
+#' When the data are ordered, an `NA` means that the list in that row has
+#' already ended, and `NA` is a filler to make the matrix rectangular. No 
+#' `NA` should precede a non-`NA`. The number of columns is (or should be, rather) 
+#' the length of the longest list. I say 'should be' because you can always 
+#' trivially add a column of  `NA`s; but don't do this. In other words, the 
+#' last column in your matrix of ordered lists should contain at least one row
+#' with a non-`NA`. If you are interested in a specific rank, then a set of
+#' ordered lists is useful because you can quickly scan down a column to see 
+#' the items that are most frequently in that rank. **To use the functions in 
+#' this repository, your data must be formulated as ordered lists**
+#' 
 #' ### Inspect pairwise LDRBOs
 #' 
 #' First, we can calculate the matrix of pairwise LDRBO values for the 32 
