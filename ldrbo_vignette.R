@@ -1,7 +1,7 @@
 #' ---
 #' title: "*Vignette*: identifying the consensus LDRBO using `consensus_ldrbo`"
 #' author: "Philip S. Boonstra"
-#' date: "October 31, 2019"
+#' date: "November 4, 2019"
 #' geometry: margin=2cm
 #' output: 
 #'  pdf_document: 
@@ -32,7 +32,7 @@ options(digits = 3)
 #' However, whereas a ranked list gives the ranks 
 #' of the $v$ items, an ordered list permutes the $v$ items themselves based upon
 #' their ranking. Specifically, the $s$th entry of a ranked list is the rank 
-#' assigned to the item having integer labels (lower numbers indicate higher
+#' assigned to the item having integer label $s$ (lower numbers indicate higher
 #' ranks), and the $s$th entry of an ordered list is the integer label of the 
 #' item that is ranked $s$th (items appearing early in the list are ranked higher)."
 #' 
@@ -56,9 +56,9 @@ options(digits = 3)
 #' been attained, even assuming a best case scenario, can be discarded as clearly 
 #' suboptimal. However, this is a fairly extreme and simplistic  pruning
 #' approach, since it is inconceivable except in the most trivial case that 
-#' any candidate list could attain 
-#' perfect agreement with *all* lists in the data set. Therefore, empirically 
-#' I've noticed that most lists are not dropped based upon this check until 
+#' any candidate list could attain  perfect agreement with *all* lists in the data set. 
+#' What this means practically is that in some cases, especially as $\psi$ increases
+#' towards 1, most lists are not dropped based upon this check until 
 #' late in the algorithm, when computing 
 #' savings are minimal. Therefore, the algorithm further prioritizes lists that 
 #' cannot be dropped based on the relative difference between (i) the current 
@@ -124,7 +124,9 @@ case23_ordered[1:5,];
 
 #' ### Inspect pairwise LDRBOs
 #' 
-#' First, I calculate the matrix of pairwise LDRBO values for the 32 physicians.
+#' First, we can calculate the matrix of pairwise LDRBO values for the 32 
+#' physicians. This is not a necessary step towards the calculation of the 
+#' consensus list; it is just a demonstration of the `ldrbo` function. 
 #' 
 
 #+ echo=T, warning=F, message=F, cache = F, include = T
@@ -135,7 +137,7 @@ case23_pairwise_ldrbo <-
         psi = 1,
         verbose_results = FALSE);
 
-# This is the vector of 32 LDRBO values comparing the list from physician 1
+# Below is the vector of 32 LDRBO values comparing the list from physician 1
 # to the lists from physicians 1, ..., 32. By definition, the LDRBO of an 
 # identical list, i.e. comparing physician 1's list to itself, must be 1
 
@@ -143,9 +145,12 @@ case23_pairwise_ldrbo[,1];
 
 #' ### Calculate the consensus LDRBO
 #' 
-#' Now I use the function `consensus_ldrbo` to calculate the consensus list
+#' Here I use the function `consensus_ldrbo` to calculate the consensus list
 #' that has the maximum median pairwise LDRBO across all lists in our data. 
-#' At a minimum, I only need to provide the data and the choice of $\psi$.
+#' At a minimum, I only need to provide the data and the choice of $\psi$. 
+#' Recall that $\psi$ is a positive parameter, with smaller values meaning that
+#' relatively more emphasis is given to agreement at earlier stages than
+#' later stages. 
 
 #+ echo=T, warning=F, message=F, cache = T, include = T
 
@@ -238,7 +243,7 @@ case23_consensus_ldrbo$control$look_beyond;
 #' Since this is less then the value of `look_beyond[2]`, I can keep all of them
 #' for the time being and proceed to step 3 and so on. 
 #' 
-#' Here I set `window_seq` so that the next most promising three items
+#' Here I set `window_seq` so that the three next most promising items
 #' are only ever considered:
 #' 
 #+ echo=T, warning=F, message=F, cache = T, include = T
@@ -297,6 +302,6 @@ case23_consensus_ldrbo_mod2$consensus_total_rbo;
 #' fewer seconds. 
 #' 
 #' 
-#' Fin
+#' *Fin*
 
 
