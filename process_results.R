@@ -181,6 +181,9 @@ methods_to_include = c("bpl",
                        "bpl_aic",
                        "bpl_bic",
                        "ldrbo",
+                       "mean_rank",
+                       "geom_mean_rank",
+                       "median_rank",
                        "mc1",
                        "mc2",
                        "mc3",
@@ -193,6 +196,9 @@ pretty_names_methods_to_include =
     bpl_aic = "BPL($\\lambda_\\textsc{aic}$)",
     bpl_bic = "BPL($\\lambda_\\textsc{bic}$)",
     ldrbo = "LDRBO",
+    mean_rank = "AMean",
+    geom_mean_rank = "GMean",
+    median_rank = "Median",
     mc1 = "MC1",
     mc2 = "MC2",
     mc3 = "MC3",
@@ -246,30 +252,31 @@ table4 <-
   spread(key = method_names, 
          value = combined_metric);
 
-table4_aux <- 
-  raw_all_bpl %>% 
-  mutate(
-    scenario_id = factor(scenario_id),
-    param_id = factor(param_id)) %>%
-  filter(method_names %in% c("bpl_aic","bpl_bic")) %>% 
-  select(n_training, param_id, method_names, rmse_order) %>%
-  group_by(n_training, param_id, method_names) %>%
-  summarize(bpl_pen_addon = 
-              paste0("(",formatC(mean(1000 * rmse_order),
-                                 format = "f", 
-                                 digits = 0),")")) %>%
-  arrange(param_id, n_training)  %>%
-  spread(key = method_names, 
-         value = bpl_pen_addon);
-
-table4 <-
-  left_join(table4, table4_aux) %>%
-  mutate(`BPL($\\lambda_\\textsc{aic}$)` = 
-           paste0(`BPL($\\lambda_\\textsc{aic}$)`, bpl_aic),
-         `BPL($\\lambda_\\textsc{bic}$)` = 
-           paste0(`BPL($\\lambda_\\textsc{bic}$)`, bpl_bic)) %>%
-  select(-bpl_aic, -bpl_bic);
+if(0) {
+  table4_aux <- 
+    raw_all_bpl %>% 
+    mutate(
+      scenario_id = factor(scenario_id),
+      param_id = factor(param_id)) %>%
+    filter(method_names %in% c("bpl_aic","bpl_bic")) %>% 
+    select(n_training, param_id, method_names, rmse_order) %>%
+    group_by(n_training, param_id, method_names) %>%
+    summarize(bpl_pen_addon = 
+                paste0("(",formatC(mean(1000 * rmse_order),
+                                   format = "f", 
+                                   digits = 0),")")) %>%
+    arrange(param_id, n_training)  %>%
+    spread(key = method_names, 
+           value = bpl_pen_addon);
   
+  table4 <-
+    left_join(table4, table4_aux) %>%
+    mutate(`BPL($\\lambda_\\textsc{aic}$)` = 
+             paste0(`BPL($\\lambda_\\textsc{aic}$)`, bpl_aic),
+           `BPL($\\lambda_\\textsc{bic}$)` = 
+             paste0(`BPL($\\lambda_\\textsc{bic}$)`, bpl_bic)) %>%
+    select(-bpl_aic, -bpl_bic);
+}
 
 linesep_index <- rep("", nrow(table4));
 

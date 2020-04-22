@@ -24,7 +24,7 @@ ldrbo = function(dat_new,
                  verbose_results = TRUE) {
   
   if(class(dat_new)!="matrix" || class(dat_ref)!="matrix") {
-    stop("`dat_new' and `dat_ref' must be matrices");
+    stop("'dat_new' and 'dat_ref' both must be matrices");
   }
   while(ncol(dat_new) < ncol(dat_ref)) {dat_new = cbind(dat_new,NA);}
   while(ncol(dat_ref) < ncol(dat_new)) {dat_ref = cbind(dat_ref,NA);}
@@ -49,22 +49,24 @@ ldrbo = function(dat_new,
     for(j in 1:n_ref_samps) {
       max_d = max(sum(!is.na(dat_new[i,])),
                   sum(!is.na(dat_ref[j,])));
-      #if(F) {
-      #  for(d in 1:max_d) {
-      #    agreement[i,j,d] = sum(!is.na(intersect(dat_new[i,1:d],dat_ref[j,1:d])))/d
-      #  }
-      #}
-      #if(T) {
+      
       agreement[i,j,1:max_d] = 
         seq_size_intersection(x = dat_new[i,], 
                               y = dat_ref[j, ], 
                               max_d = max_d) / (1:max_d);
-      #}
+      
       psi2d[i,j,-(1:max_d)] = 0;
     }
   }
   
   rbo = rowSums(agreement * psi2d, dims = 2) / rowSums(psi2d, dims = 2);
+  
+  if(!is.null(rownames(dat_new))) {
+    rownames(rbo) = rownames(dat_new);
+  }
+  if(!is.null(rownames(dat_ref))) {
+    colnames(rbo) = rownames(dat_ref);
+  }
   
   if(verbose_results) {
     list(rbo = rbo, 
@@ -397,21 +399,12 @@ consensus_ldrbo = function(dat,
       psi2d[,j,-seq_max_d] = 0;
       for(i in seq_nrow_curr_search) {
         
-        #if(F) {
-        #  for(d in seq_max_d) {
-        #    obs_agreement[i,j,d] =
-        #      max_agreement[i,j,d] = 
-        #      sum(!is.na(intersect(curr_search[i,seq_len(min(k,d))],
-        #                           dat[j,seq_len(min(length_j,d))])))/d
-        #  }
-        #}  
-        #if(T) {
+        
         obs_agreement[i,j,1:max_d] =
           max_agreement[i,j,1:max_d] = 
           seq_size_intersection(x = curr_search[i,], 
                                 y = dat[j, ], 
                                 max_d = max_d) / (1:max_d);
-        #}
         
         # Extrapolate to the maximum possible agreement
         if(k < min_max_size_max_d) {
@@ -464,9 +457,9 @@ consensus_ldrbo = function(dat,
     # To order the candidate methods in the current search
     # (i) evalute the additional rbo that each row must gain to achieve its 
     # full potential relative to what the current best observed rbo would need 
-    # to achieve relative to get that same maximum. 
+    # to achieve to get that same maximum. 
     # (ii) exclude any rows that cannot exceed the current rbo value that has 
-    # already achieved by a list (this is a fairly weak exclusion)
+    # already been achieved by a list (this is a fairly weak exclusion)
     
     criterion = 
       ((max_possible_rbo - max(curr_search_total_rbo)) / 
@@ -531,6 +524,36 @@ consensus_ldrbo = function(dat,
                       objective = objective),
        candidates = curr_search, 
        candidates_total_rbo = curr_search_total_rbo);
+}
+
+
+
+
+minimum_ldrbo <- function(size_library, 
+                          length_list1 = length(library_size),
+                          length_list2 = length(library_size), 
+                          psi = 1) {
+  
+  if(any(pmax(length_list1, length_list2) > size_library) ||
+     any(pmin(length_list1, length_list2) < 1)) {
+    stop("'length_list1' and 'length_list2' must both be integers
+         in [1, size_library]")
+  }
+  
+  list1 = matrix(seq(1, length_list1, by = 1), nrow = 1);
+  list2 = matrix(NA, nrow = length(length_list2), ncol = max(length_list2))
+  for(i in seq_along(length_list2)) {
+    list2[i,seq_len(length_list2[i])] = seq(size_library, size_library - length_list2[i] + 1, by = -1);
+  }
+  
+  tibble(
+    size_library = size_library,
+    length_list1 = length_list1, 
+    length_list2 = length_list2, 
+    min_possible_ldrbo = drop(ldrbo(dat_new = list1,
+                                    psi = psi,
+                                    dat_ref = list2,
+                                    verbose = FALSE)))
 }
 
 

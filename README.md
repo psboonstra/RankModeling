@@ -31,7 +31,7 @@ penalties
 In more detail, there are eleven files included in this repository (in addition 
 to this README and the authors' version of the manuscript): three CSV files 
 (ending in <samp>.csv</samp>) and eight <samp>R</samp> scripts (ending in 
-<samp>.R</samp>). The results reported in the manuscript were run using commit 13.
+<samp>.R</samp>). The results reported in the manuscript were run using commit 23.
 
 ### CSV files
 
@@ -52,7 +52,7 @@ See the file ldrbo_vignette.pdf for more details.
 and recharacterizes from ranked lists to ordered lists. Case 23 == Case A; 
 Case 111 == Case B; Case 83 == Case C
 
-<samp>fit_model_problists.R</samp> calls the previous two scripts and then 
+<samp>fit_model_problists.R</samp> calls the previous three scripts and then 
 calculates the solution paths and creates the tables and figures reported 
 in the manuscript
 

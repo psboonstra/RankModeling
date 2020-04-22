@@ -231,6 +231,9 @@ simulator = function(array_id = 1,
       "bpl_aic",
       "bpl_bic",
       "ldrbo",
+      "mean_rank",
+      "geom_mean_rank",
+      "median_rank",
       "mc1",
       "mc2",
       "mc3",
@@ -271,6 +274,7 @@ simulator = function(array_id = 1,
                         fct_inorder(),
                       neg_loglikelihood  = NA_real_,
                       aic = NA_real_,
+                      bic = NA_real_,
                       lambda = NA_real_,
                       num_eff_params = NA_real_,
                       num_actual_params = NA_real_,
@@ -355,6 +359,27 @@ simulator = function(array_id = 1,
       nonnull_curr_true_param_comparison_matrix = 
         comparison_matrix(curr_true_param[curr_nonnull_item_names]);
       
+      # For Mean, Median rank
+      dat_ranked = matrix(NA, nrow = n_training, ncol = n_items);
+      for(j in 1:n_training) {
+        foo = dat_ordered[j,]
+        if(length(foo) < n_items) {
+          foo = c(foo, rep(NA, n_items - length(foo)))
+        }
+        if(any(is.na(foo))) {
+          unranked_items = setdiff(seq_len(length(true_param) - 3), foo)
+          dat_ranked[j,unranked_items] = mean(which(is.na(foo)))
+          foo = foo[which(!is.na(foo))]
+          rm(unranked_items)
+        } 
+        dat_ranked[j,foo] = 1:length(foo)
+        rm(foo)
+      }
+      rm(j)
+      mean_median_tie_breaker = 
+        summary(factor(dat_ordered[,1], levels = 1:curr_n_items)) + 
+        runif(curr_n_items, -0.1, 0.1)
+      
       # For AUC
       can_do_auc = 
         any(curr_true_param[curr_item_names] > 0) && 
@@ -379,16 +404,16 @@ simulator = function(array_id = 1,
         curr_n_nonnull_items;
       
       bpl_soln_path <-
-        penRank_path(dat = dat_ordered, 
-                     num_inits = 3, 
-                     lambda_seq = 0,
-                     consider_truncating_lambda_seq = FALSE,
-                     min_reps = 2, 
-                     stable_reps = 2,
-                     max_reps_keq1 = 100, 
-                     max_reps_kgt1 = 25,
-                     verbose = FALSE, 
-                     safe_mode = FALSE);
+        penalized_rank_path(dat = dat_ordered, 
+                            num_inits = 3, 
+                            lambda_seq = 0,
+                            consider_truncating_lambda_seq = FALSE,
+                            min_reps = 2, 
+                            stable_reps = 2,
+                            max_reps_keq1 = 100, 
+                            max_reps_kgt1 = 25,
+                            verbose = FALSE, 
+                            safe_mode = FALSE);
       summarized_performance[curr_row_performance, "run_time_secs"] =
         as.numeric(bpl_soln_path$runtime);
       
@@ -400,10 +425,10 @@ simulator = function(array_id = 1,
       
       foo = validate_weights(est_weights = curr_weights, 
                              true_weights = curr_true_param[curr_item_names], 
-                             true_weights_comparison_matrix = curr_true_param_comparison_matrix);
+                             true_weights_comparison_matrix = curr_true_param_comparison_matrix, 
+                             tie_breaker = curr_tie_breaker);
       summarized_performance[curr_row_performance, "tau_x"] = foo$tau_x;
       summarized_performance[curr_row_performance, "rmse_order"] = foo$rmse_order;
-      rm(foo);
       
       if(can_do_auc) {
         summarized_performance[curr_row_performance, "auc"] =
@@ -414,6 +439,8 @@ simulator = function(array_id = 1,
         bpl_soln_path$all_neg_loglikelihood[1,1];
       summarized_bpl[curr_row_bpl,"aic"] =
         bpl_soln_path$all_aic[1,1];
+      summarized_bpl[curr_row_bpl,"bic"] =
+        bpl_soln_path$all_bic[1,1];
       summarized_bpl[curr_row_bpl,"lambda"] =
         bpl_soln_path$control$lambda_seq[1];
       summarized_bpl[curr_row_bpl,"num_eff_params"] =
@@ -430,10 +457,6 @@ simulator = function(array_id = 1,
       summarized_bpl[curr_row_bpl,"tnr"] =
         sum(near(curr_weights, 0) * near(curr_true_param[curr_item_names], 0)) / 
         sum(near(curr_true_param[curr_item_names], 0));
-      foo = validate_weights(est_weights = curr_weights, 
-                             true_weights = curr_true_param[curr_item_names], 
-                             true_weights_comparison_matrix = curr_true_param_comparison_matrix, 
-                             tie_breaker = curr_tie_breaker);
       summarized_bpl[curr_row_bpl, "rmse_order"] = foo$rmse_order;
       rm(foo);
       
@@ -460,16 +483,16 @@ simulator = function(array_id = 1,
         curr_n_nonnull_items;
       
       bpl_soln_path <-
-        penRank_path(dat = dat_ordered, 
-                     num_inits = ncol(init_params), 
-                     num_lambda = 50,
-                     min_reps = 2, 
-                     stable_reps = 2,
-                     max_reps_keq1 = 100, 
-                     max_reps_kgt1 = 25,
-                     verbose = FALSE, 
-                     safe_mode = FALSE,
-                     init_params = init_params);
+        penalized_rank_path(dat = dat_ordered, 
+                            num_inits = ncol(init_params), 
+                            num_lambda = 50,
+                            min_reps = 2, 
+                            stable_reps = 2,
+                            max_reps_keq1 = 100, 
+                            max_reps_kgt1 = 25,
+                            verbose = FALSE, 
+                            safe_mode = FALSE,
+                            init_params = init_params);
       
       summarized_performance[curr_row_performance, "run_time_secs"] =
         as.numeric(bpl_soln_path$runtime);
@@ -482,10 +505,10 @@ simulator = function(array_id = 1,
       
       foo = validate_weights(est_weights = curr_weights, 
                              true_weights = curr_true_param[curr_item_names], 
-                             true_weights_comparison_matrix = curr_true_param_comparison_matrix);
+                             true_weights_comparison_matrix = curr_true_param_comparison_matrix, 
+                             tie_breaker = curr_tie_breaker);
       summarized_performance[curr_row_performance, "tau_x"] = foo$tau_x;
       summarized_performance[curr_row_performance, "rmse_order"] = foo$rmse_order;
-      rm(foo);
       
       if(can_do_auc) {
         summarized_performance[curr_row_performance, "auc"] =
@@ -504,10 +527,6 @@ simulator = function(array_id = 1,
       summarized_bpl[curr_row_bpl,"tnr"] =
         sum(near(curr_weights, 0) * near(curr_true_param[curr_item_names], 0)) / 
         sum(near(curr_true_param[curr_item_names], 0));
-      foo = validate_weights(est_weights = curr_weights, 
-                             true_weights = curr_true_param[curr_item_names], 
-                             true_weights_comparison_matrix = curr_true_param_comparison_matrix, 
-                             tie_breaker = curr_tie_breaker);
       summarized_bpl[curr_row_bpl, "rmse_order"] = foo$rmse_order;
       rm(foo);
       
@@ -542,10 +561,10 @@ simulator = function(array_id = 1,
       
       foo = validate_weights(est_weights = curr_weights, 
                              true_weights = curr_true_param[curr_item_names], 
-                             true_weights_comparison_matrix = curr_true_param_comparison_matrix);
+                             true_weights_comparison_matrix = curr_true_param_comparison_matrix, 
+                             tie_breaker = curr_tie_breaker);
       summarized_performance[curr_row_performance, "tau_x"] = foo$tau_x;
       summarized_performance[curr_row_performance, "rmse_order"] = foo$rmse_order;
-      rm(foo);
       
       if(can_do_auc) {
         summarized_performance[curr_row_performance, "auc"] =
@@ -564,10 +583,6 @@ simulator = function(array_id = 1,
       summarized_bpl[curr_row_bpl,"tnr"] =
         sum(near(curr_weights, 0) * near(curr_true_param[curr_item_names], 0)) / 
         sum(near(curr_true_param[curr_item_names], 0));
-      foo = validate_weights(est_weights = curr_weights, 
-                             true_weights = curr_true_param[curr_item_names], 
-                             true_weights_comparison_matrix = curr_true_param_comparison_matrix, 
-                             tie_breaker = curr_tie_breaker);
       summarized_bpl[curr_row_bpl, "rmse_order"] = foo$rmse_order;
       rm(foo);
       
@@ -636,6 +651,115 @@ simulator = function(array_id = 1,
       
       rm(begin_ldrbo,ldrbo_results, end_ldrbo, curr_row_performance, curr_weights);
       
+      
+      # + Mean rank ----
+      cat("#", "Mean rank","\n");
+      
+      curr_row_performance = 
+        with(summarized_performance, 
+             which(sim_id == i & method_names == "mean_rank"));
+      
+      begin_mean_rank = Sys.time();
+      mean_rank = colMeans(dat_ranked)
+      end_mean_rank = Sys.time();
+      
+      summarized_performance[curr_row_performance, "n_obs_items"] = 
+        curr_n_items;
+      summarized_performance[curr_row_performance, "n_obs_nonnull_items"] = 
+        curr_n_nonnull_items;
+      summarized_performance[curr_row_performance, "run_time_secs"] =
+        as.numeric(difftime(end_mean_rank, begin_mean_rank, units = "secs"));
+      
+      curr_weights = -(mean_rank);
+      names(curr_weights) = curr_item_names;
+      
+      foo = validate_weights(est_weights = curr_weights, 
+                             true_weights = curr_true_param[curr_item_names], 
+                             true_weights_comparison_matrix = curr_true_param_comparison_matrix, 
+                             tie_breaker = mean_median_tie_breaker);
+      summarized_performance[curr_row_performance, "tau_x"] = foo$tau_x;
+      summarized_performance[curr_row_performance, "rmse_order"] = foo$rmse_order;
+      rm(foo);
+      
+      if(can_do_auc) {
+        summarized_performance[curr_row_performance, "auc"] =
+          as.numeric(auc(1 * (curr_true_param[curr_item_names] > 0), curr_weights));
+      }
+      
+      rm(begin_mean_rank, end_mean_rank, curr_row_performance, curr_weights);
+      
+      # + Geometric mean rank ----
+      cat("#", "Geometric mean rank","\n");
+      
+      curr_row_performance = 
+        with(summarized_performance, 
+             which(sim_id == i & method_names == "geom_mean_rank"));
+      
+      begin_geom_mean_rank = Sys.time();
+      geom_mean_rank = exp(colMeans(log(dat_ranked)))
+      end_geom_mean_rank = Sys.time();
+      
+      summarized_performance[curr_row_performance, "n_obs_items"] = 
+        curr_n_items;
+      summarized_performance[curr_row_performance, "n_obs_nonnull_items"] = 
+        curr_n_nonnull_items;
+      summarized_performance[curr_row_performance, "run_time_secs"] =
+        as.numeric(difftime(end_geom_mean_rank, begin_geom_mean_rank, units = "secs"));
+      
+      curr_weights = -(geom_mean_rank);
+      names(curr_weights) = curr_item_names;
+      
+      foo = validate_weights(est_weights = curr_weights, 
+                             true_weights = curr_true_param[curr_item_names], 
+                             true_weights_comparison_matrix = curr_true_param_comparison_matrix,
+                             tie_breaker = mean_median_tie_breaker);
+      summarized_performance[curr_row_performance, "tau_x"] = foo$tau_x;
+      summarized_performance[curr_row_performance, "rmse_order"] = foo$rmse_order;
+      rm(foo);
+      
+      if(can_do_auc) {
+        summarized_performance[curr_row_performance, "auc"] =
+          as.numeric(auc(1 * (curr_true_param[curr_item_names] > 0), curr_weights));
+      }
+      
+      rm(begin_geom_mean_rank,geom_mean_rank, end_geom_mean_rank, curr_row_performance, curr_weights);
+      
+      
+      # + Median rank ----
+      cat("#", "Median rank","\n");
+      
+      curr_row_performance = 
+        with(summarized_performance, 
+             which(sim_id == i & method_names == "median_rank"));
+      
+      begin_median_rank = Sys.time();
+      median_rank = apply(dat_ranked, 2, quantile,  prob = 0.5)
+      end_median_rank = Sys.time();
+      
+      summarized_performance[curr_row_performance, "n_obs_items"] = 
+        curr_n_items;
+      summarized_performance[curr_row_performance, "n_obs_nonnull_items"] = 
+        curr_n_nonnull_items;
+      summarized_performance[curr_row_performance, "run_time_secs"] =
+        as.numeric(difftime(end_median_rank, begin_median_rank, units = "secs"));
+      
+      curr_weights = -(median_rank);
+      names(curr_weights) = curr_item_names;
+      
+      foo = validate_weights(est_weights = curr_weights, 
+                             true_weights = curr_true_param[curr_item_names], 
+                             true_weights_comparison_matrix = curr_true_param_comparison_matrix, 
+                             tie_breaker = mean_median_tie_breaker);
+      summarized_performance[curr_row_performance, "tau_x"] = foo$tau_x;
+      summarized_performance[curr_row_performance, "rmse_order"] = foo$rmse_order;
+      rm(foo);
+      
+      if(can_do_auc) {
+        summarized_performance[curr_row_performance, "auc"] =
+          as.numeric(auc(1 * (curr_true_param[curr_item_names] > 0), curr_weights));
+      }
+      
+      rm(begin_median_rank, median_rank, end_median_rank, curr_row_performance, curr_weights, mean_rank, mean_median_tie_breaker);
       
       # + MC ----
       cat("#", "MC 1--3","\n");

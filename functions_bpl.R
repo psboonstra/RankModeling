@@ -84,7 +84,7 @@ BPL_neg_loglik = function(param,
   #Insert zero after end of every list to indicate 'stop'
   aug_dat[cbind(1:num_obs,list_lengths + 1)] = 0;
   #Check if fatigue is to be monitored
-  if("0"%in%names(param)) {
+  if("0" %in% names(param) && param["0"] > (-Inf)) {
     log_fatigue_weight = param["0"];
     fatigue_weight = exp(log_fatigue_weight);
   } else {
@@ -167,7 +167,7 @@ BPL_neg_loglik = function(param,
 
 
 BPL_neg_loglik_CA = function(param,
-                             CA_param,
+                             CA_param = NA,
                              dat,
                              obs_weights, 
                              safe_mode = TRUE, 
@@ -217,11 +217,13 @@ BPL_neg_loglik_CA = function(param,
   #Insert zero after end of every list to indicate 'stop'
   aug_dat[cbind(1:num_obs,list_lengths + 1)] = 0;
   #Check if fatigue is to be monitored
-  if("0"%in%names(param)) {
-    log_fatigue_weight = param["0"];
-    fatigue_weight = exp(log_fatigue_weight);
-  } else {
-    log_fatigue_weight = fatigue_weight = 0;
+  if(!(length(CA_flag) && CA_flag == "0")) {
+    if("0" %in% names(param) && param["0"] > (-Inf)) {
+      log_fatigue_weight = param["0"];
+      fatigue_weight = exp(log_fatigue_weight);
+    } else {
+      log_fatigue_weight = fatigue_weight = 0;
+    }
   }
   #Do this if a grid of dampening parameters is provided
   if(length(CA_flag) && (CA_flag %in% c("log_delta1","log_delta2"))) {
@@ -387,11 +389,13 @@ over_identified_cost = function(param,
 #
 ### param: (vector with 'names' attribute, numeric) the parameter vector to evaluate with respect to the data. Must be named exactly 
 #as follows: '0' (optional, if the stopping process is to be modeled), then consecutive positive integer labels, one for each 
-#unique item, then 'log_delta1', then 'log_delta2'. Up to one element of 'param' can be missing (NA), in which case CA_param
-# should be non-missing
+#unique item, then 'log_delta1', then 'log_delta2'. Exactly one element of 'param' *may* be missing (NA), in which case CA_param
+# should be provided
 #
 ### CA_param (vector, numeric) a grid of values to plug in for the missing element of 'param'. The function will return a vector
 # of negative log-likelihoods as long as this grid
+#
+### which_to_estimate (vector, character) 
 #
 ### tau (numeric, non-negative) When positive, this makes the count smoothly varying between 0 and 1. 
 #
@@ -403,28 +407,41 @@ over_identified_cost = function(param,
 ### num_uniq: (integer, positive) number of unique items in 'dat'. Only required if safe_mode == FALSE, otherwise will be equal to sum(!is.na(unique(as.numeric(dat))))
 #
 ### Value
-# A vector as long as 'CA_param', if it is provided and non-missing, otherwise a scalar if 'param' is fully observed. Each element will 
-# be 0 if the function determines that the BPL is identified under this configuration, or Inf otherwise. 
+# A vector as long as 'CA_param', if it is provided and non-missing, otherwise a scalar if 'param' is fully observed. 
+# Each element gives the effective number of non-zero parameters in a given BPL-type model
+# for a given value of tau. 
 
 seamless_L0 = function(param,
-                       CA_param,
-                       tau, 
+                       CA_param = NA,
+                       which_to_estimate = NULL,
+                       tau = .Machine$double.eps^0.5, 
                        penalty_pow = 1,
                        safe_mode = TRUE,
                        num_uniq = NULL) {
   #name of parameter to grid-search over
   CA_flag = names(param)[which(is.na(param))];
   item_names = intersect(1:length(param), names(param));
-  fatigue_param_exists = ("0"%in%names(param));
+  if(is.null(which_to_estimate)) {
+    which_to_estimate = names(param);
+    which_items_to_estimate = item_names;
+  } else {
+    which_items_to_estimate = intersect(which_to_estimate, item_names);
+  }
   if(safe_mode) {
-    num_uniq = length(item_names);
-    if("log_delta1"%in%names(param) && CA_flag != "log_delta1" && param["log_delta1"] > 0) {stop("'log_delta1' must be non-positive");}
-    if("log_delta2"%in%names(param) && CA_flag != "log_delta2" && param["log_delta2"] > 0) {stop("'log_delta2' must be non-positive");}
-    if(length(CA_flag) && CA_flag == "log_delta1" && any(CA_param > 0)) {stop("'log_delta1' must be non-positive");}
-    if(length(CA_flag) && CA_flag == "log_delta2" && any(CA_param > 0)) {stop("'log_delta2' must be non-positive");}
+    num_uniq = length(which_items_to_estimate);
+    if("log_delta1" %in% names(param) && CA_flag != "log_delta1" && param["log_delta1"] > 0) {stop("'log_delta1' must be non-positive");}
+    if("log_delta2" %in% names(param) && CA_flag != "log_delta2" && param["log_delta2"] > 0) {stop("'log_delta2' must be non-positive");}
+    if(length(CA_flag) && any(is.na(CA_param))) {stop("'CA_param' must be a vector of one more numbers with no NAs");}
+    if(length(CA_flag) && CA_flag == "log_delta1" && any(CA_param > 0)) {stop("'log_delta1' (i.e. 'CA_flag') must be non-positive");}
+    if(length(CA_flag) && CA_flag == "log_delta2" && any(CA_param > 0)) {stop("'log_delta2' (i.e. 'CA_flag') must be non-positive");}
     if(penalty_pow <= 0) {stop("'penalty_pow' must be strictly positive");}
     if(tau < 0) {stop("'tau' must be strictly positive");}
   }
+  fatigue_param_exists = ("0" %in% which_to_estimate);
+  # If delta1, delta2 are not estimated at all or fixed, then treat them as 
+  # if they were at their null values for purposes of parameter counting
+  if(!"log_delta1" %in% names(param) || !"log_delta1" %in% which_to_estimate) {param["log_delta1"] = 0}
+  if(!"log_delta2" %in% names(param) || !"log_delta2" %in% which_to_estimate) {param["log_delta2"] = 0}
   #This block handles the case that CA_flag is an actual item
   if(length(CA_flag) && (length_CA_param <- length(CA_param)) > 1) {
     if(!(CA_flag %in% c("0","log_delta1","log_delta2"))) {
@@ -433,16 +450,16 @@ seamless_L0 = function(param,
       delta2 = exp(param["log_delta2"]);
       #foo is a three-dimensional array: 
       #first dimension (rows) has length equal to length of CA_param
-      #second dimension (columns) has length equal to length of item_names
+      #second dimension (columns) has length equal to length of which_items_to_estimate
       #third dimension also has length equal to number of items to rank and corresponds to rank
-      foo = array(rep(sapply(param[item_names],"-",theta_min), each = num_uniq), 
+      foo = array(rep(sapply(param[which_items_to_estimate],"-",theta_min), each = num_uniq), 
                   dim = c(length_CA_param, num_uniq, num_uniq),
-                  dimnames = list(NULL,item_names,item_names));
+                  dimnames = list(NULL,which_items_to_estimate,which_items_to_estimate));
       foo[,,CA_flag] = CA_param - theta_min; 
       foo3 = array(rep(0:(num_uniq-1),each = length_CA_param) ,dim = dim(foo));
       foo4 = foo * (delta2 * (delta1 ^ foo3) + (1 - delta2)^(2 * foo3 + 1));
       #Final count:
-      result = fatigue_param_exists +
+      result = 
         log2(1/(1 + abs(tau/param["log_delta1"])^penalty_pow) + 1) + 
         log2(1/(1 + abs(tau/param["log_delta2"])^penalty_pow) + 1) + 
         rowMeans(rowSums(log2(1/(1+(tau/foo4)^penalty_pow) + 1), dims = 2));
@@ -451,9 +468,9 @@ seamless_L0 = function(param,
       theta_min = rep(min(param[item_names]), length(CA_param));
       delta1 = exp(CA_param);
       delta2 = exp(param["log_delta2"]);
-      foo = array(rep(sapply(param[item_names], "-", theta_min), each = num_uniq), 
+      foo = array(rep(sapply(param[which_items_to_estimate], "-", theta_min), each = num_uniq), 
                   dim = c(length_CA_param, num_uniq, num_uniq),
-                  dimnames = list(NULL, item_names, item_names));
+                  dimnames = list(NULL, which_items_to_estimate, which_items_to_estimate));
       #foo is a 3-dimensional array: 
       #first dimension has length equal to length of CA_param
       #second dimension has length equal to number of items to rank and corresponds to rank (this is the dimension that CA is exploring)
@@ -462,7 +479,7 @@ seamless_L0 = function(param,
       foo3 = matrix(delta1,nrow = length_CA_param, ncol = num_uniq);
       foo4 = foo * array(delta2 * foo3 ^ foo2 + (1 - delta2)^(2 * foo2 + 1), dim = dim(foo));
       #Final count:
-      result = fatigue_param_exists + 
+      result = 
         log2(1/(1 + abs(tau/CA_param)^penalty_pow) + 1) + 
         log2(1/(1 + abs(tau/param["log_delta2"])^penalty_pow) + 1) + 
         rowSums(rowMeans(log2(1/(1+(tau/foo4)^penalty_pow)+1), dims = 2));
@@ -471,9 +488,9 @@ seamless_L0 = function(param,
       theta_min = rep(min(param[item_names]), length(CA_param));
       delta1 = exp(param["log_delta1"]);
       delta2 = exp(CA_param);
-      foo = array(rep(sapply(param[item_names], "-", theta_min), each = num_uniq), 
+      foo = array(rep(sapply(param[which_items_to_estimate], "-", theta_min), each = num_uniq), 
                   dim = c(length_CA_param, num_uniq, num_uniq),
-                  dimnames = list(NULL, item_names, item_names));
+                  dimnames = list(NULL, which_items_to_estimate, which_items_to_estimate));
       #foo is a 3-dimensional array: 
       #first dimension has length equal to length of CA_param
       #second dimension has length equal to number of items to rank and corresponds to rank (this is the dimension that CA is exploring)
@@ -482,7 +499,7 @@ seamless_L0 = function(param,
       foo3 = matrix(delta2,nrow = length_CA_param, ncol = num_uniq);
       foo4 = foo * array(foo3 * delta1 ^ foo2 + (1 - foo3)^(2 * foo2 + 1), dim = dim(foo));
       #Final count:
-      result = fatigue_param_exists + 
+      result = 
         log2(1/(1 + abs(tau/param["log_delta1"])^penalty_pow) + 1) + 
         log2(1/(1 + abs(tau/CA_param)^penalty_pow) + 1) + 
         rowSums(rowMeans(log2(1/(1+(tau/foo4)^penalty_pow)+1),dims=2));
@@ -490,11 +507,11 @@ seamless_L0 = function(param,
       delta1 = exp(param["log_delta1"]);
       delta2 = exp(param["log_delta2"]);
       #
-      foo = matrix(param[item_names] - min(param[item_names]), nrow = num_uniq, ncol = num_uniq, byrow = TRUE);
+      foo = matrix(param[which_items_to_estimate] - min(param[item_names]), nrow = num_uniq, ncol = num_uniq, byrow = TRUE);
       foo2 = 0:(num_uniq-1);
       foo3 = foo * matrix((delta2 * delta1 ^ (foo2) + (1 - delta2) ^ (2 * foo2 + 1)), nrow = num_uniq, ncol = num_uniq);
       #Final count:
-      result = fatigue_param_exists + 
+      result =
         log2(1/(1 + abs(tau/param["log_delta1"])^penalty_pow) + 1) + 
         log2(1/(1 + abs(tau/param["log_delta2"])^penalty_pow) + 1) + 
         mean(rowSums(log2(1/(1+(tau/foo3)^penalty_pow) + 1)));
@@ -508,18 +525,19 @@ seamless_L0 = function(param,
     delta1 = exp(param["log_delta1"]);
     delta2 = exp(param["log_delta2"]);
     #
-    foo = matrix(param[item_names] - min(param[item_names]), nrow = num_uniq, ncol = num_uniq, byrow = TRUE);
+    foo = matrix(param[which_items_to_estimate] - theta_min, nrow = num_uniq, ncol = num_uniq, byrow = TRUE);
     foo2 = 0:(num_uniq-1);
     foo3 = foo * matrix((delta2 * delta1 ^ (foo2) + (1 - delta2) ^ (2 * foo2 + 1)), nrow = num_uniq, ncol = num_uniq);
-    result = fatigue_param_exists +
+    result = 
       log2(1/(1 + abs(tau/param["log_delta1"])^penalty_pow) + 1) + 
       log2(1/(1 + abs(tau/param["log_delta2"])^penalty_pow) + 1) + 
       mean(rowSums(log2(1/(1+(tau/foo3)^penalty_pow) + 1)));
   }
-  result;
+  fatigue_param_exists +
+    as.numeric(result);
 } 
 
-# function name and purpose: 'penRank_path' calculates the full solution path of a penalized BPL model as well as estimating
+# function name and purpose: 'penalized_rank_path' calculates the full solution path of a penalized BPL model as well as estimating
 # the optimal penalization as given by that minimizing the small-sample AIC and the BIC.
 #
 # author: Phil Boonstra (philb@umich.edu)
@@ -616,55 +634,71 @@ seamless_L0 = function(param,
 #
 ###A list of many results from the fitting process:
 ## control = a list of the parameters used by the algorithm 
+#
 ## monitor_joint_shifts = a matrix with dimension c(length(lambda_seq), 4), giving the counts of the number of each type of multivariable
 # proposal that was accepted. This is just to see if the multivariable proposals are actually offering sensible proposals
+#
 ## hit_max_reps = matrix with num_inits * ncol(fixed) rows and num_lambda columns, indicating when the algorithm quit due to hitting 
 # the maximum allowed number of iterations (either max_reps_keq1 for the first lambda or max_reps_kgt1 for other lambdas) instead
 # of converging?
+#
 ## actual_reps = matrix with the same dimension as hit_max_reps indicating the number of iterations till converging or quitting
+#
 ## num_eff_params = matrix with the same dimension as hit_max_reps giving the effective number of parameters, equivalently the L0 penalty
 # before being scaled by lambda
-## num_actual_params = atrix with the same dimension as hit_max_reps giving the actual number of parameters in the model
+#
+## num_actual_params = matrix with the same dimension as hit_max_reps giving the actual number of parameters in the model
+#
 ## all_neg_loglikelihood = matrix with the same dimension as hit_max_reps giving the negative log-likelihood values
+#
 ## all_bic = matrix with the same dimension as hit_max_reps giving the bic values
+#
 ## all_aic = matrix with the same dimension as hit_max_reps giving the aic values
+#
 ## all_params = list as long as num_inits * ncol(fixed), with each element being a matrix with number of rows equal to the largest possible
 # number of parameters and number of columsn equal to the number of lambdas evaluated. 
+#
 ## best_fit_neg_loglikelihood = matrix with number of rows equal to the largest possible number of parameters and number of columns equal to
 # num_inits * ncol(fixed), giving the best solution according to maximized log-likelihood
+#
 ## best_neg_loglikelihood = matrix with four rows and number of columns equal to num_inits * ncol(fixed), giving the value of the negative
 # log-likelihood, the value of lambda, the number of effective parameters, and the number of actual parameters corresponding to the fit with
 # the largest log-likelihood
+#
 ## best_fit_bic = similar to best_fit_neg_loglikelihood but using BIC as the objective function
+#
 ## best_bic = similar to best_neg_loglikelihood but using BIC as the objective function
-## best_fit_aic = imilar to best_fit_neg_loglikelihood but using AIC as the objective function 
+#
+## best_fit_aic = similar to best_fit_neg_loglikelihood but using AIC as the objective function 
+#
 ## best_aic =  similar to best_neg_loglikelihood but using AIC as the objective function
+#
 ## runtime = the total runtime of the function
 
-penRank_path = function(dat, 
-                        obs_weights = rep(1, nrow(dat)), 
-                        fixed = NULL, 
-                        num_inits = 4, 
-                        conv_tol = 1e-3, 
-                        tau = NULL,
-                        num_lambda = 200, 
-                        lambda_min_ratio = 1e-5, 
-                        lambda_seq = NULL, 
-                        consider_truncating_lambda_seq = TRUE,
-                        penalty_pow = 1,
-                        proposal_seq = NULL, 
-                        proposal_seq_half_length = NULL,
-                        max_proposal_seq = 1,
-                        stable_reps = 5, 
-                        min_reps = 5,
-                        multivariable_proposals = TRUE,
-                        delta_lb = 0.25, 
-                        max_reps_kgt1 = 1e3, 
-                        max_reps_keq1 = 250, 
-                        random_seed = sample(.Machine$integer.max,1),
-                        verbose = FALSE, 
-                        safe_mode = FALSE, 
-                        init_params = NULL) {
+penalized_rank_path = function(dat, 
+                               obs_weights = rep(1, nrow(dat)), 
+                               fixed = NULL, 
+                               num_inits = 4, 
+                               conv_tol = 1e-3, 
+                               tau = NULL,
+                               num_lambda = 200, 
+                               lambda_min_ratio = 1e-5, 
+                               lambda_seq = NULL, 
+                               consider_truncating_lambda_seq = TRUE,
+                               penalty_pow = 1,
+                               proposal_seq = NULL, 
+                               proposal_seq_half_length = NULL,
+                               max_proposal_seq = 1,
+                               stable_reps = 5, 
+                               min_reps = 5,
+                               multivariable_proposals = TRUE,
+                               delta_lb = 0.25, 
+                               max_reps_kgt1 = 1e3, 
+                               max_reps_keq1 = 250, 
+                               random_seed = sample(.Machine$integer.max,1),
+                               verbose = FALSE, 
+                               safe_mode = FALSE, 
+                               init_params = NULL) {
   
   # + Initialize ----
   begin = Sys.time();
@@ -700,6 +734,7 @@ penRank_path = function(dat,
   if(!is.null(init_params) && !all(rownames(init_params) == param_names)) {stop("If provided, 'init_params' must have rownames exactly as follows: '0' (but only if any lists stop early), then consecutive positive integer labels, one for each unique item, then 'log_delta1', then 'log_delta2'");}
   if(!is.null(init_params) && sum(init_params[item_names,] < 0)) {stop("There are negative item weights in the user-provided matrix of 'init_params'; all item weights should be non-negative")}
   if((is.null(rownames(fixed)) || !all(rownames(fixed)%in%param_names)) && !is.null(fixed)) {stop("'fixed' must be NULL or a matrix with rownames being a subset of the parameter names");}
+  if(!is.null(fixed) && any(fixed < 0) && any(names(which(apply(fixed, 1, min) < 0)) %in% item_names)) {stop("Fixed values of any item weights must be non-negative");}
   if(is.null(proposal_seq) && !is.null(max_proposal_seq) && max_proposal_seq < conv_tol) {stop("'max_proposal_seq' must be greater than 'conv_tol'");}
   if(is.null(proposal_seq) && !is.null(proposal_seq_half_length) && (proposal_seq_half_length < 1 || proposal_seq_half_length %% 1 != 0)) {stop("'proposal_seq_half_length' must be a positive integer");}
   if(!is.null(proposal_seq) && !(any(proposal_seq <= -conv_tol) && any(proposal_seq >= conv_tol))) {stop(paste0("At a minimum, 'proposal_seq' should be a set of at least two numbers, with at least one element >= ", formatC(conv_tol,format="e", digits = 2), " and one element <= ",  formatC(-conv_tol,format="e", digits = 2)));}
@@ -831,12 +866,17 @@ penRank_path = function(dat,
     
     #Loop through the initial starting values of the parameters
     for(j in j_start:j_end) {
-      min_possible_num_param = seamless_L0(init_params[,j] * fixed_indicators[,j], tau = tau, penalty_pow = penalty_pow, safe_mode = TRUE, num_uniq = num_uniq);
+      
       which_to_estimate = setdiff(param_names,param_names[which(fixed_indicators[,j] == 1)]);
       which_to_estimate_except_dampening = setdiff(which_to_estimate,c("log_delta1","log_delta2"));
       which_dampening_to_estimate = intersect(which_to_estimate,c("log_delta1","log_delta2"));
       which_items_to_estimate = setdiff(which_to_estimate,c("0","log_delta1","log_delta2"));
       num_items_to_estimate = length(which_items_to_estimate);
+      
+      # Simplest model has a fatigue parameter (if estimated) 
+      # plus a common parameter for all items
+      min_possible_num_param = 
+        ("0" %in% which_to_estimate);
       
       store_params[[j]] = matrix(NA, nrow = length_params, ncol = num_lambda, dimnames = list(param_names,formatC(lambda_seq,format="f",digits=3)));
       if(!identifying_max_lambda && verbose) {
@@ -854,9 +894,14 @@ penRank_path = function(dat,
         previous_column =  stable_reps + 1;
         #curr_best_cost keeps track of the smallest achieved penalized log-likelihood that we've achieved so far with this lambda;
         #the corresponding parameter values that yield this best cost will be kept in param_for_compare[,curr_column];
-        curr_best_cost = BPL_neg_loglik_CA(param_for_compare[,curr_column],NA,dat,obs_weights,safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths) + 
-          lambda * seamless_L0(param_for_compare[,curr_column],NA, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq) + 
-          over_identified_cost(param_for_compare[,curr_column],NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
+        curr_best_cost = BPL_neg_loglik_CA(param_for_compare[,curr_column], NA, dat, obs_weights, safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths) + 
+          lambda * seamless_L0(param = param_for_compare[,curr_column], 
+                               which_to_estimate = which_to_estimate,
+                               tau = tau, 
+                               penalty_pow = penalty_pow, 
+                               safe_mode = safe_mode, 
+                               num_uniq = num_items_to_estimate) + 
+          over_identified_cost(param_for_compare[which_to_estimate,curr_column], NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
         while((i <= min_reps) || max(abs(param_for_compare[which_to_estimate,-curr_column] - param_for_compare[which_to_estimate,curr_column])) >= conv_tol - tiny_positive) {
           #First consider coordinate-wise maximization (skipping if the previous full iteration didn't result in any changes)
           if((i <= min_reps) || max(abs(param_for_compare[which_to_estimate,ifelse(previous_column == 1, stable_reps + 1, previous_column - 1)] - 
@@ -890,8 +935,17 @@ penRank_path = function(dat,
                                   max_columns = max_columns, 
                                   list_lengths = list_lengths, 
                                   CA_param_counts_by_rank = CA_param_counts_by_rank) + 
-                lambda * seamless_L0(curr_try,CA_curr_try, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq) + 
-                over_identified_cost(curr_try,CA_curr_try, safe_mode = safe_mode, tiny_positive = tiny_positive);
+                lambda * seamless_L0(curr_try,
+                                     CA_param = CA_curr_try, 
+                                     which_to_estimate = which_to_estimate,
+                                     tau = tau, 
+                                     penalty_pow = penalty_pow, 
+                                     safe_mode = safe_mode, 
+                                     num_uniq = num_items_to_estimate) + 
+                over_identified_cost(curr_try[which_to_estimate],
+                                     CA_curr_try, 
+                                     safe_mode = safe_mode, 
+                                     tiny_positive = tiny_positive);
               if(curr_try_cost[which_min_curr_try_cost <- which.min(curr_try_cost)] < curr_best_cost) {
                 curr_try[m] = CA_curr_try[which_min_curr_try_cost];
                 curr_best_cost = curr_try_cost[which_min_curr_try_cost];
@@ -946,14 +1000,14 @@ penRank_path = function(dat,
             
             #Calculate, store the penalized log-likelihoods of these multivariable proposals.
             shift_down_cost = BPL_neg_loglik(shift_down,dat,obs_weights,fixed = NULL,safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths) + 
-              lambda * seamless_L0(shift_down, NA, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq) + 
-              over_identified_cost(shift_down, NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
+              lambda * seamless_L0(shift_down, NA, which_to_estimate, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_items_to_estimate) + 
+              over_identified_cost(shift_down[which_to_estimate], NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
             shift_up_cost = BPL_neg_loglik(shift_up,dat,obs_weights,fixed = NULL,safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths) + 
-              lambda * seamless_L0(shift_up, NA, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq) + 
-              over_identified_cost(shift_up, NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
+              lambda * seamless_L0(shift_up, NA, which_to_estimate, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_items_to_estimate) + 
+              over_identified_cost(shift_up[which_to_estimate], NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
             permute_estimates_cost = BPL_neg_loglik(permute_estimates, dat, obs_weights, fixed = NULL,safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths) + 
-              lambda * seamless_L0(permute_estimates, NA, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq) + 
-              over_identified_cost(permute_estimates, NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
+              lambda * seamless_L0(permute_estimates, NA, which_to_estimate, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_items_to_estimate) + 
+              over_identified_cost(permute_estimates[which_to_estimate], NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
             
             #swap_delta: if both dampening parameters are to be estimated, consider a simpler dampening model that sets log_delta2 = 0 while providing an equivalent amount
             #of dampening in the first two stages
@@ -962,8 +1016,8 @@ penRank_path = function(dat,
               swap_delta[c("log_delta1","log_delta2")] =  
                 pmax(log_delta_lb, pmin(0,c(round(log(stage1_dampening),sig_digits),0)));
               swap_delta_cost = BPL_neg_loglik(swap_delta,dat,obs_weights,fixed = NULL,safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths) + 
-                lambda * seamless_L0(swap_delta, NA, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq) + 
-                over_identified_cost(swap_delta, NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
+                lambda * seamless_L0(swap_delta, NA, which_to_estimate, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_items_to_estimate) + 
+                over_identified_cost(swap_delta[which_to_estimate], NA, safe_mode = safe_mode, tiny_positive = tiny_positive);
             } else {
               swap_delta_cost = Inf;
             }
@@ -1003,8 +1057,22 @@ penRank_path = function(dat,
             cat(i - 1,formatC((param_for_compare[which_to_estimate,curr_column] - store_params[[j]][which_to_estimate,k-1]),format="f"),"\n");
           }
         }
-        store_num_actual_params[j,k] = seamless_L0(param_for_compare[,curr_column],CA_param = NULL, tau = tiny_positive, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq);
-        store_num_eff_params[j,k] = seamless_L0(param_for_compare[,curr_column],CA_param = NULL, tau = tau, penalty_pow = penalty_pow, safe_mode = safe_mode, num_uniq = num_uniq);
+        store_num_actual_params[j,k] = 
+          seamless_L0(param_for_compare[,curr_column],
+                      CA_param = NA,
+                      which_to_estimate = which_to_estimate,
+                      tau = tiny_positive,
+                      penalty_pow = penalty_pow,
+                      safe_mode = safe_mode,
+                      num_uniq = num_items_to_estimate);
+        store_num_eff_params[j,k] = 
+          seamless_L0(param_for_compare[,curr_column],
+                      CA_param = NA,
+                      which_to_estimate = which_to_estimate,
+                      tau = tau,
+                      penalty_pow = penalty_pow,
+                      safe_mode = safe_mode,
+                      num_uniq = num_items_to_estimate);
         #If we are actually calculating the solution path (as opposed to constructing 'lambda_seq'), then store the results
         if(!identifying_max_lambda) {
           store_neg_loglikelihood[j,k] = BPL_neg_loglik(param_for_compare[,curr_column],dat,obs_weights,fixed = NULL,safe_mode = safe_mode, num_uniq, num_obs, num_ranks, max_columns, list_lengths)

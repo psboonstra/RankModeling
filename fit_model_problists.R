@@ -3,7 +3,7 @@
 # S1--S3 in the manuscript, and one .png file corresponding to Figure 3 in the 
 # manuscript
 
-
+library(Hmisc);
 library(tidyverse);
 library(RColorBrewer);
 library(TopKLists);
@@ -16,10 +16,10 @@ fig_extension = "png";
 source("gather_data.R");
 
 fixed = NULL;
-num_inits = 3;
+num_inits = 3;#1;#
 conv_tol = 1e-3;
 tau = conv_tol;
-num_lambda = 100; 10;#
+num_lambda = 100;#10;#
 lambda_min_ratio = 1e-6;
 lambda_seq = NULL;
 penalty_pow = 1;
@@ -30,8 +30,8 @@ stable_reps = 3;
 min_reps = 3;
 multivariable_proposals = T;
 delta_lb = 0.25;
-max_reps_keq1 = 1e3;
-max_reps_kgt1 = 250;
+max_reps_keq1 = 1e3;#100;#
+max_reps_kgt1 = 250;#25;#
 random_seed = sample(2^30.9, 1);
 verbose = FALSE;
 safe_mode = FALSE;
@@ -92,9 +92,32 @@ for(case_name in c("23","111","83")) {
   dat_ordered_as_list = matrix_to_list(dat_ordered);
   obs_weights = rep(1, nrow(dat_ordered));
   n_items = length(unique(sort(dat_ordered)));
+  n_phys = nrow(dat_ordered)
+  
+  # For Mean, Median rank
+  dat_ranked_filled_out = matrix(NA, nrow = n_phys, ncol = n_items);
+  for(j in 1:n_phys) {
+    foo = dat_ordered[j,]
+    if(length(foo) < n_items) {
+      foo = c(foo, rep(NA, n_items - length(foo)))
+    }
+    if(any(is.na(foo))) {
+      unranked_items = setdiff(1:n_items, foo)
+      dat_ranked_filled_out[j,unranked_items] = mean(which(is.na(foo)))
+      foo = foo[which(!is.na(foo))]
+      rm(unranked_items)
+    } 
+    dat_ranked_filled_out[j,foo] = 1:length(foo)
+    rm(foo)
+  }
+  rm(j)
+  mean_median_tie_breaker = 
+    summary(factor(dat_ordered[,1], levels = 1:n_items)) + 
+    runif(n_items, -0.1, 0.1)
+  
   
   #Rprof("penRank_run1.out",line.profiling = T)
-  unpenalized_soln = penRank_path(dat = dat_ordered, 
+  unpenalized_soln = penalized_rank_path(dat = dat_ordered, 
                                   obs_weights = obs_weights, 
                                   fixed = fixed, 
                                   num_inits = num_inits, 
@@ -122,7 +145,7 @@ for(case_name in c("23","111","83")) {
   
   selected_iter_neg_loglikelihood = which.min(unpenalized_soln$best_neg_loglikelihood["neg_loglikelihood",]);
   
-  penalized_soln_path = penRank_path(dat = dat_ordered, 
+  penalized_soln_path = penalized_rank_path(dat = dat_ordered, 
                                      obs_weights = obs_weights, 
                                      fixed = fixed, 
                                      num_inits = num_inits, 
@@ -161,6 +184,7 @@ for(case_name in c("23","111","83")) {
     bpl_pen_bic = formatC(penalized_soln_path$best_bic["lambda",selected_iter_bic],format = "f", digits = 2), 
     ldrbo = NA, 
     mean_rank = NA,
+    geom_mean_rank = NA,
     median_rank = NA, 
     mc1 = NA, 
     mc2 = NA, 
@@ -179,6 +203,7 @@ for(case_name in c("23","111","83")) {
     bpl_pen_bic = formatC(penalized_soln_path$best_bic["num_actual_params",selected_iter_bic],format = "f", digits = 0), 
     ldrbo = NA, 
     mean_rank = NA,
+    geom_mean_rank = NA,
     median_rank = NA, 
     mc1 = NA, 
     mc2 = NA, 
@@ -210,6 +235,18 @@ for(case_name in c("23","111","83")) {
                         setdiff(1:n_items,ldrbo_results$consensus_list)));
   ldrbo_ranks[ldrbo_ranks > length(ldrbo_results$consensus_list)] = "";
   
+  mean_rank = apply(dat_ranked_filled_out, 2, wtd.mean, weights = obs_weights)
+  mean_rankA = as.numeric(rank(1000 * mean_rank - mean_median_tie_breaker))
+  mean_rankB = paste0("(",trimws(formatC(mean_rank,format = "f", digits = 1)),")");
+  
+  geom_mean_rank = exp(apply(log(dat_ranked_filled_out), 2, wtd.mean, weights = obs_weights))
+  geom_mean_rankA = as.numeric(rank(1000 * geom_mean_rank - mean_median_tie_breaker))
+  geom_mean_rankB = paste0("(",trimws(formatC(geom_mean_rank,format = "f", digits = 1)),")");
+  
+  median_rank = apply(dat_ranked_filled_out, 2, wtd.quantile,  prob = 0.5, weights = obs_weights);
+  median_rankA = as.numeric(rank(1000 * median_rank - mean_median_tie_breaker))
+  median_rankB = paste0("(",trimws(formatC(median_rank,format = "f", digits = 1)),")");
+  
   mc_results = MC(dat_ordered_as_list);
   mc1A = order(mc_results$MC1.TopK);
   mc1B = paste0("(",trimws(format(100*mc_results$MC1.Prob[mc1A],format = "f", digits = 2)),")");
@@ -231,7 +268,7 @@ for(case_name in c("23","111","83")) {
   
   MM_results = 
     order(as.numeric(MM(rankings = t(replace_na(dat_ordered, 0)))$op.pi0));
-  
+
   rankings <- 
     data.frame(
       problem = c("$\\theta_0$",paste0("\\textsc{",tolower(colnames(dat_ranked)),"}"),"$\\delta_1$","$\\delta_2$"), 
@@ -239,8 +276,12 @@ for(case_name in c("23","111","83")) {
       bpl_pen_aic = bpl_pen_aic,
       bpl_pen_bic = bpl_pen_bic,
       ldrbo = c("", ldrbo_ranks , "", ""),
-      mean_rank = c(NA, apply(dat_ranked,2,mean,na.rm=T),NA, NA),
-      median_rank = c(NA, apply(dat_ranked,2,median,na.rm=T),NA, NA),
+      mean_rankA = c("", mean_rankA, "", ""),
+      mean_rankB = c("", mean_rankB, "", ""),
+      geom_mean_rankA = c("", geom_mean_rankA, "", ""),
+      geom_mean_rankB = c("", geom_mean_rankB, "", ""),
+      median_rankA = c("", median_rankA, "", ""),
+      median_rankB = c("", median_rankB, "", ""),
       mc1A = c("", mc1A, "", ""),
       mc1B = c("", mc1B, "", ""),
       mc2A = c("", mc2A, "", ""),
@@ -258,7 +299,7 @@ for(case_name in c("23","111","83")) {
             desc(bpl_pen_aic),
             desc(bpl_unpen),
             desc(ldrbo),
-            mean_rank) %>%
+            mean_rankB) %>%
     mutate(bpl_unpen = formatC(bpl_unpen,format = "f", digits = 2), 
            bpl_pen_aic = formatC(bpl_pen_aic,format = "f", digits = 2),
            bpl_pen_bic = formatC(bpl_pen_bic,format = "f", digits = 2),
@@ -268,17 +309,20 @@ for(case_name in c("23","111","83")) {
            ldrbo_post = replace_na(ifelse(abs(as.numeric(ldrbo) - rank_counter) <= 1 |
                                             ((as.numeric(ldrbo) > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "}",""),""),
            #
-           mean_rank_pretty = formatC(mean_rank,format = "f", digits = 1),
-           mean_rank_pre = replace_na(ifelse(abs(mean_rank - rank_counter) <= 1 | 
-                                               ((mean_rank > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "\\textbf{",""),""),
-           mean_rank_post = replace_na(ifelse(abs(mean_rank - rank_counter) <= 1 |
-                                                ((mean_rank > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "}",""),""),
+           mean_rank_pre = replace_na(ifelse(abs(as.numeric(mean_rankA) - rank_counter) <= 1 | 
+                                               ((as.numeric(mean_rankA) > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "\\textbf{",""),""),
+           mean_rank_post = replace_na(ifelse(abs(as.numeric(mean_rankA) - rank_counter) <= 1 |
+                                                ((as.numeric(mean_rankA) > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "}",""),""),
            #
-           median_rank_pretty = formatC(median_rank,format = "f", digits = 1),
-           median_rank_pre = replace_na(ifelse(abs(median_rank - rank_counter) <= 1 | 
-                                                 ((median_rank > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "\\textbf{",""),""),
-           median_rank_post = replace_na(ifelse(abs(median_rank - rank_counter) <= 1 | 
-                                                  ((median_rank > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "}",""),""),
+           geom_mean_rank_pre = replace_na(ifelse(abs(as.numeric(geom_mean_rankA) - rank_counter) <= 1 | 
+                                                    ((as.numeric(geom_mean_rankA) > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "\\textbf{",""),""),
+           geom_mean_rank_post = replace_na(ifelse(abs(as.numeric(geom_mean_rankA) - rank_counter) <= 1 |
+                                                     ((as.numeric(geom_mean_rankA) > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "}",""),""),
+           #
+           median_rank_pre = replace_na(ifelse(abs(as.numeric(median_rankA) - rank_counter) <= 1 | 
+                                                 ((as.numeric(median_rankA) > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "\\textbf{",""),""),
+           median_rank_post = replace_na(ifelse(abs(as.numeric(median_rankA) - rank_counter) <= 1 | 
+                                                  ((as.numeric(median_rankA) > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "}",""),""),
            #
            mc1_pre = replace_na(ifelse(abs(as.numeric(mc1A) - rank_counter) <= 1 | 
                                          ((as.numeric(mc1A) > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "\\textbf{",""),""),
@@ -315,16 +359,17 @@ for(case_name in c("23","111","83")) {
            MM_post = replace_na(ifelse(abs(as.numeric(MM) - rank_counter) <= 1 | 
                                          ((as.numeric(MM) > num_nonzero_aic) & (rank_counter > num_nonzero_aic)), "}",""),"")) %>%
     mutate(ldrbo = paste0(ldrbo_pre, ldrbo, ldrbo_post),
-           mean_rank = paste0(mean_rank_pre, mean_rank_pretty, mean_rank_post),
-           median_rank = paste0(median_rank_pre, median_rank_pretty, median_rank_post),
-           mc1 = paste0(mc1_pre, mc1A,  mc1B, mc1_post),
+           mean_rank = paste0(mean_rank_pre, mean_rankA, mean_rankB, mean_rank_post),
+           geom_mean_rank = paste0(geom_mean_rank_pre,  geom_mean_rankA, geom_mean_rankB,  geom_mean_rank_post),
+           median_rank = paste0(median_rank_pre,  median_rankA, median_rankB,  median_rank_post),
+           mc1 = paste0(mc1_pre, mc1A, mc1B, mc1_post),
            mc2 = paste0(mc2_pre, mc2A, mc2B, mc2_post),
            mc3 = paste0(mc3_pre, mc3A, mc3B, mc3_post),
            cemc_spearman = paste0(cemc_spearman_pre, cemc_spearman, cemc_spearman_post),
            cemc_kendall = paste0(cemc_kendall_pre, cemc_kendall, cemc_kendall_post),
            EMM = paste0(EMM_pre, EMM, EMM_post),
            MM = paste0(MM_pre, MM, MM_post, eol)) %>%
-    select(problem:median_rank, mc1:mc3, cemc_spearman, cemc_kendall, EMM, MM) %>%
+    select(problem:ldrbo, mean_rank, geom_mean_rank, median_rank, mc1:mc3, cemc_spearman, cemc_kendall, EMM, MM) %>%
     mutate_all(funs(ifelse(. == "", NA, .))) %>%
     mutate_all(funs(ifelse(. == "NA", NA, .)));
   
